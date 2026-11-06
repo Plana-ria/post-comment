@@ -192,6 +192,21 @@ final class ChatService
         return $stmt->fetchAll();
     }
 
+    /** Prune expired, never-used anonymous identities without deleting posts. */
+    public function pruneUnusedAnonymousSessions(int $limit=200): int
+    {
+        $limit=max(1,min(1000,$limit));
+        $stmt=$this->db->prepare('DELETE FROM anonymous_sessions WHERE id IN (
+            SELECT a.id FROM anonymous_sessions a
+            WHERE a.expires_at < ?
+              AND NOT EXISTS (SELECT 1 FROM comments c
+                  WHERE c.room_id=a.room_id AND c.anonymous_session_id=a.id)
+            LIMIT '.$limit.'
+        )');
+        $stmt->execute([gmdate('Y-m-d\TH:i:s\Z')]);
+        return $stmt->rowCount();
+    }
+
     public function acceptAnonymous(string $roomId, ?string $cookieToken, int $hours=24): array
     {
         if ($cookieToken !== null && preg_match('/^[a-f0-9]{64}$/', $cookieToken)) {
@@ -204,6 +219,8 @@ final class ChatService
         $token = bin2hex(random_bytes(32));
         $stmt = $this->db->prepare('INSERT INTO anonymous_sessions(id,room_id,token_hash,expires_at) VALUES(?,?,?,?)');
         $stmt->execute([$id,$roomId,hash('sha256',$token),gmdate('Y-m-d\TH:i:s\Z',time()+$hours*3600)]);
+        // No cron is required on shared hosting; remove abandoned expired IDs.
+        if (random_int(1,128) === 1) $this->pruneUnusedAnonymousSessions();
         return ['id'=>$id,'token'=>$token];
     }
 
