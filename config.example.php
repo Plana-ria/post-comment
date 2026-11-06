@@ -23,6 +23,10 @@ return [
         'name' => 'post_comment_session',
         'secure_cookie' => true,
     ],
+    'installation' => [
+        // Set a unique, random 32+ character secret before first setup.
+        'setup_key' => '',
+    ],
     'update' => [
         'repository' => 'Plana-ria/post-comment',
         'auto_apply' => false,
