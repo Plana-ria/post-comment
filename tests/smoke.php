@@ -336,6 +336,27 @@ try {
         json_decode($japanRow['submitted_values_json'],true,512,JSON_THROW_ON_ERROR)['name']!=='来場者') {
         throw new RuntimeException('CP932 import corrupted Japanese input');
     }
+    file_put_contents($csvPath,
+        "time,name,messenge\n2026/11/04 12:00:00,\"来場者, A\",\"1行目\n2行目\"\n"
+        ."2026/11/04 12:00:01,=1+1,formula\n");
+    $quoted=$importer->import($guestTemplateRoom,$csvPath);
+    if ($quoted['imported']!==2) throw new RuntimeException('Quoted/multiline CSV import failed');
+    $rows=$db->prepare('SELECT comment_text,submitted_values_json FROM comments WHERE room_id=? ORDER BY id DESC LIMIT 2');
+    $rows->execute([$guestTemplateRoom]);
+    $recent=$rows->fetchAll(PDO::FETCH_ASSOC);
+    if ($recent[1]['comment_text']!=="1行目\n2行目"
+        || json_decode($recent[1]['submitted_values_json'],true,512,JSON_THROW_ON_ERROR)['name']!=='来場者, A'
+        || json_decode($recent[0]['submitted_values_json'],true,512,JSON_THROW_ON_ERROR)['name']!=='=1+1') {
+        throw new RuntimeException('Quoted CSV values did not survive in the DB');
+    }
+    $output=fopen('php://temp','w+b');
+    CsvExport::admin($db,$guestTemplateRoom,$output);
+    rewind($output);
+    $exportText=stream_get_contents($output);
+    fclose($output);
+    if (!str_contains($exportText,"'=1+1") || !str_contains($exportText,"1行目\n2行目")) {
+        throw new RuntimeException('CSV export lost multiline text or formula protection');
+    }
     unlink($csvPath);
 
     $checks=Diagnostics::check(
