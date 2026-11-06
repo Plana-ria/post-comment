@@ -85,7 +85,13 @@ try {
 }
 $route = (string) ($_GET['route'] ?? 'home');
 $method = (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET');
-$installed = !$pending && (int) $db->query('SELECT COUNT(*) FROM administrators')->fetchColumn() > 0;
+// A pending schema migration must NEVER reopen first-install setup when
+// administrators already exist. Check installation state independently.
+$hasAdminTable = (bool) $db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='administrators'")->fetchColumn();
+$installed = $hasAdminTable && (int) $db->query('SELECT COUNT(*) FROM administrators')->fetchColumn() > 0;
+if ($installed && $pending) {
+    page('更新が必要です', '<p>DBスキーマ更新を検出しました。更新ツールの実装が完了するまでは、保守担当者がバックアップを確認してください。</p>', 503);
+}
 
 if (!$installed) {
     if ($route !== 'setup') {
