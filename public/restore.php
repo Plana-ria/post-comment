@@ -36,7 +36,7 @@ header('Referrer-Policy: no-referrer');
 header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'");
 
 if (($_SERVER['REQUEST_METHOD']??'') !== 'POST') failRestore('復元は管理画面から開始してください。',405);
-$configFile=dirname(__DIR__).'/config.php';
+$configFile=$root.'/config.php';
 if (!is_file($configFile)) failRestore('設定ファイルがありません。',503);
 $config=require $configFile;
 if (!is_array($config)) failRestore('設定ファイルが不正です。',503);
