@@ -366,6 +366,22 @@ try {
         throw new RuntimeException('Backup does not contain current comments');
     }
     $copy=null;
+    // A physically sound SQLite file can still contain dangling foreign keys.
+    // Such a backup must be rejected rather than replacing a live database.
+    $invalid=$dir.'/invalid-foreign-key.sqlite';
+    if (!copy($backup,$invalid)) throw new RuntimeException('Could not stage invalid backup');
+    $badDb=new PDO('sqlite:'.$invalid,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+    $badDb->exec('PRAGMA foreign_keys=OFF');
+    $badDb->exec("INSERT INTO room_participants(room_id,user_id,first_joined_at)
+        VALUES('ffffffffffffffffffffffffffffffff','eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee','2026-01-01T00:00:00Z')");
+    $badDb=null;
+    try {
+        BackupService::validateImport($invalid);
+        throw new RuntimeException('Dangling foreign keys unexpectedly accepted');
+    } catch (RuntimeException $e) {
+        if (str_contains($e->getMessage(),'unexpectedly accepted')) throw $e;
+    }
+    unlink($invalid);
     $active=$dir.'/restored-active.sqlite';
     $staged=$dir.'/restore-staged.sqlite';
     if (!copy($backup,$active) || !copy($backup,$staged)) throw new RuntimeException('Could not prepare restore test');
