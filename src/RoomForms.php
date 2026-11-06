@@ -32,10 +32,10 @@ final class RoomForms
             $stmt->execute([$formId,$roomId]);
             $stmt = $this->db->prepare('INSERT INTO audit_events(actor_id,action,target_type,target_id,created_at) VALUES(?,?,?,?,?)');
             $stmt->execute([$editorId,'form_published','room',$roomId,$now]);
-            $this->db->commit();
+            $this->db->exec('COMMIT');
             return $version;
         } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) $this->db->rollBack();
+            if ($this->db->inTransaction()) $this->db->exec('ROLLBACK');
             throw $e;
         }
     }
