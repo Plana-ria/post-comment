@@ -219,6 +219,36 @@ request(manager,"route=admin-csv&room_id="+forbidden_id,expect=403)
 request(manager,"route=admin-updates&room_id="+forbidden_id+"&after=0",expect=403)
 request(manager,"route=operations",expect=403)
 
+# A room administrator may rotate a participant's code, revoking the old
+# code and active sessions without losing historical posts.
+reset_page=request(manager,"route=room-admin&room_id="+room_id)
+user_match=re.search(r'name="user_id" value="([a-f0-9]{32})"',reset_page)
+if not user_match:
+    raise AssertionError("Participant is missing from manager's code reset list")
+reset_result=request(manager,"route=reset-user",{
+    "csrf":token(reset_page),"room_id":room_id,"user_id":user_match.group(1),
+})
+new_code=re.search(r"新しいログインコード（一度だけ表示）：</p><p><strong>([^<]+)</strong>",reset_result)
+if not new_code:
+    raise AssertionError("Rotated participant code was not displayed")
+request(participant,"route=own-csv&slug=browser-room",expect=401)
+request(other,"route=own-csv&slug=browser-room-2",expect=401)
+failed_login=request(client(),"route=room&slug=browser-room")
+rotated_client=client()
+rotated_form=request(rotated_client,"route=room&slug=browser-room")
+request(rotated_client,"route=user-login",{
+    "csrf":token(rotated_form),"slug":"browser-room",
+    "login_id":user_id.group(1),"login_code":user_code.group(1),
+},expect=401)
+new_form=request(rotated_client,"route=room&slug=browser-room")
+request(rotated_client,"route=user-login",{
+    "csrf":token(new_form),"slug":"browser-room",
+    "login_id":user_id.group(1),"login_code":new_code.group(1),
+})
+after_reset=request(rotated_client,"route=own-csv&slug=browser-room")
+if "The test question" not in after_reset:
+    raise AssertionError("Historical comments became inaccessible after code rotation")
+
 # Anonymous sessions have scoped downloads without any login.
 create_room("anonymous-room","none")
 guest=client()
