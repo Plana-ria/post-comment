@@ -84,7 +84,7 @@ if (!extension_loaded('pdo_sqlite')) {
     page('環境に対応していません', '<p>PHPの PDO_SQLITE 拡張機能が必要です。</p>', 503);
 }
 $secure = (bool) ($config['session']['secure_cookie'] ?? true);
-if ($secure && (($_SERVER['HTTPS'] ?? '') !== 'on')) {
+if ($secure && !postCommentHttps()) {
     page('HTTPSが必要です', '<p>このシステムはHTTPS接続で利用してください。</p>', 503);
 }
 session_name($config['session']['name'] ?? 'post_comment_session');
