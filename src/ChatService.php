@@ -198,6 +198,9 @@ final class ChatService
                 throw new RuntimeException('Field too long.');
             }
             if (!empty($field['required']) && $value==='') throw new RuntimeException('Required field is missing: '.$field['label']);
+            if ($field['type']==='checkbox' && !in_array($value, ['','1'], true)) {
+                throw new RuntimeException('Invalid checkbox value.');
+            }
             if ($field['type']==='email' && $value!=='' && !filter_var($value,FILTER_VALIDATE_EMAIL)) {
                 throw new RuntimeException('Invalid email address.');
             }
