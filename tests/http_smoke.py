@@ -85,7 +85,7 @@ if rows[0] != ["time","comment"] or len(rows) != 2 or rows[1][1] != "The test qu
     raise AssertionError("Participant CSV is not exactly timestamp + comment")
 if "TestSurname" in own or "TestAffiliation" in own or "test@example.com" in own:
     raise AssertionError("Participant CSV leaked private input values")
-request(participant, "route=admin-csv&room_id=missing", expect=403)
+request(participant, "route=admin-csv&room_id=missing", expect=401)
 
 admin_rooms = request(admin, "route=rooms")
 link = re.search(r'\?route=room-admin&amp;room_id=([a-f0-9]{32})',admin_rooms)
