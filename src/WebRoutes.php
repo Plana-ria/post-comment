@@ -140,10 +140,12 @@ final class WebRoutes
             }
             if ($route === 'own-csv') {
                 if ($method !== 'GET') page('操作できません', '', 405);
-                self::csv('my-comments.csv',['time','comment'], array_map(
-                    static fn(array $r):array => [$r['created_at'],$r['comment_text']],
-                    $service->ownComments($room['id'],$userId,$anonId)
-                ));
+                if ($userId === null && $anonId === null) page('認証が必要です', '', 401);
+                header('Content-Type: text/csv; charset=UTF-8');
+                header('Content-Disposition: attachment; filename="my-comments.csv"');
+                header('Cache-Control: private, no-store');
+                CsvExport::own($db,$room['id'],$userId,$anonId,fopen('php://output','wb'));
+                exit;
             }
             $form = $service->form($room);
             $body = '<p>' . html((string)($form['description'] ?? '')) . '</p>';
@@ -220,22 +222,15 @@ final class WebRoutes
                         .'<p><a href="?route=room-admin&amp;room_id='.rawurlencode($roomId).'">戻る</a></p>');
                 } catch (Throwable $e) { self::error($e); }
             }
-            $comments=$service->adminComments($roomId, 0, $route === 'admin-csv' ? null : 500);
             if ($route === 'admin-csv') {
                 if ($method !== 'GET') page('操作できません', '', 405);
-                // Include all recorded form fields (including fields from previous form versions).
-                $all = [];
-                foreach ($comments as $row) {
-                    foreach (array_keys(json_decode($row['submitted_values_json'],true,512,JSON_THROW_ON_ERROR)) as $key) $all[$key]=true;
-                }
-                $keys=array_keys($all);
-                $records=[];
-                foreach ($comments as $row) {
-                    $values=json_decode($row['submitted_values_json'],true,512,JSON_THROW_ON_ERROR);
-                    $records[]=array_merge([$row['created_at'],$row['comment_text']],array_map(static fn($k)=>$values[$k]??'',$keys));
-                }
-                self::csv('room-comments.csv',array_merge(['time','comment'],$keys),$records);
+                header('Content-Type: text/csv; charset=UTF-8');
+                header('Content-Disposition: attachment; filename="room-comments.csv"');
+                header('Cache-Control: private, no-store');
+                CsvExport::admin($db,$roomId,fopen('php://output','wb'));
+                exit;
             }
+            $comments=$service->adminComments($roomId, 0, 500);
             $body='<p><a href="?route=admin-csv&amp;room_id='.rawurlencode($roomId).'">全件CSVを取得</a> | <a href="?route=room-settings&amp;room_id='.rawurlencode($roomId).'">ルーム設定</a> | <a href="?route=legacy-import&amp;room_id='.rawurlencode($roomId).'">旧CSVを取り込む</a> | <a href="?route=form-edit&amp;room_id='.rawurlencode($roomId).'">投稿フォームを編集</a></p>';
             $cursor = count($comments) ? max(array_map(static fn($r)=>(int)$r['id'],$comments)) : 0;
             $body.='<h2>コメント（最新500件まで）</h2><section data-room-updates data-room-id="'.html($roomId).'" data-cursor="'.$cursor.'">';
