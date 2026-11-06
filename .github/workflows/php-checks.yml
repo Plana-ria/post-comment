@@ -19,3 +19,11 @@ jobs:
         run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
       - name: SQLite migration and schema smoke test
         run: php tests/smoke.php
+      - name: HTTP integration test (development server)
+        run: |
+          php -r '$c=require "config.example.php";$c["session"]["secure_cookie"]=false;$c["installation"]["setup_key"]=str_repeat("a",64);file_put_contents("config.php","<?php return ".var_export($c,true).";");'
+          php -S 127.0.0.1:18901 -t public > /tmp/post-comment-php.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; rm -f config.php storage/database.sqlite storage/database.sqlite-journal; cat /tmp/post-comment-php.log' EXIT
+          sleep 1
+          python3 tests/http_smoke.py
