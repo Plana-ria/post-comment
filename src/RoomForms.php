@@ -36,6 +36,7 @@ final class RoomForms
             $stmt->execute([$formId,$roomId]);
             $stmt = $this->db->prepare('INSERT INTO audit_events(actor_id,action,target_type,target_id,created_at) VALUES(?,?,?,?,?)');
             $stmt->execute([$editorId,'form_published','room',$roomId,$now]);
+            $this->db->prepare('DELETE FROM form_drafts WHERE room_id=?')->execute([$roomId]);
             $this->db->exec('COMMIT');
             return $version;
         } catch (\Throwable $e) {
@@ -43,6 +44,51 @@ final class RoomForms
             try { $this->db->exec('ROLLBACK'); } catch (\Throwable $rollbackError) { /* Nothing to roll back. */ }
             throw $e;
         }
+    }
+
+    public function draft(string $roomId): ?array
+    {
+        $stmt=$this->db->prepare('SELECT base_form_version_id,definition_json,updated_at FROM form_drafts WHERE room_id=?');
+        $stmt->execute([$roomId]);
+        $row=$stmt->fetch();
+        if (!$row) return null;
+        $definition=json_decode($row['definition_json'],true,512,JSON_THROW_ON_ERROR);
+        FormDefinition::validate($definition);
+        return ['base_version'=>$row['base_form_version_id'],
+            'definition'=>$definition,'updated_at'=>$row['updated_at']];
+    }
+
+    public function saveDraft(string $roomId, array $definition, string $editorId, string $baseVersion): void
+    {
+        FormDefinition::validate($definition);
+        $serialized=json_encode($definition,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
+        $this->db->exec('BEGIN IMMEDIATE');
+        try {
+            $stmt=$this->db->prepare('SELECT active_form_version_id FROM rooms WHERE id=?');
+            $stmt->execute([$roomId]);
+            $current=$stmt->fetchColumn();
+            if ($current===false || !hash_equals((string)$current,$baseVersion)) {
+                throw new RuntimeException('フォームが別の管理者によって更新されました。画面を再読み込みしてください。');
+            }
+            $stmt=$this->db->prepare('INSERT INTO form_drafts(room_id,base_form_version_id,definition_json,updated_by,updated_at)
+                VALUES(?,?,?,?,?)
+                ON CONFLICT(room_id) DO UPDATE SET
+                    base_form_version_id=excluded.base_form_version_id,
+                    definition_json=excluded.definition_json,
+                    updated_by=excluded.updated_by,
+                    updated_at=excluded.updated_at');
+            $stmt->execute([$roomId,$baseVersion,$serialized,$editorId,gmdate('Y-m-d\TH:i:s\Z')]);
+            $this->db->exec('COMMIT');
+        } catch (\Throwable $e) {
+            try { $this->db->exec('ROLLBACK'); } catch (\Throwable $rollbackError) {}
+            throw $e;
+        }
+    }
+
+    public function discardDraft(string $roomId): void
+    {
+        $stmt=$this->db->prepare('DELETE FROM form_drafts WHERE room_id=?');
+        $stmt->execute([$roomId]);
     }
 
     public function versions(string $roomId): array
