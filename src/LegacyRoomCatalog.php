@@ -30,8 +30,8 @@ final class LegacyRoomCatalog
             ['id'=>'14', 'slug'=>'legacy-room-14', 'name'=>"地域文化資源運用実践演習2025", 'variant'=>'standard', 'auth_mode'=>'required'],
             ['id'=>'15', 'slug'=>'legacy-room-15', 'name'=>"教育実地展開概論（教育と地域創生）2026", 'variant'=>'standard', 'auth_mode'=>'required'],
             ['id'=>'16', 'slug'=>'legacy-room-16', 'name'=>"産官学連携による文化事業運営演習", 'variant'=>'standard', 'auth_mode'=>'required'],
-            ['id'=>'17', 'slug'=>'legacy-room-17', 'name'=>"産官学連携による文化事業運営演習：企画・広報・評価実践／CD養成講座26年度特別講義", 'variant'=>'standard', 'auth_mode'=>'required'],
-            ['id'=>'18', 'slug'=>'legacy-room-18', 'name'=>"研究基盤EXPO2025 第4回研究基盤協議会シンポジウム 技術と人財の交差点〜産学官連携の可能性を探る〜", 'variant'=>'expo', 'auth_mode'=>'none'],
+            ['id'=>'17', 'slug'=>'legacy-room-17', 'name'=>"産官学連携による文化事業運営演習：企画・広報・評価実践 / CD養成講座26年度特別講義", 'variant'=>'standard', 'auth_mode'=>'required'],
+            ['id'=>'18', 'slug'=>'legacy-room-18', 'name'=>"研究基盤EXPO2025_第4回研究基盤協議会シンポジウム_技術と人財の交差点〜産学官連携の可能性を探る〜", 'variant'=>'expo', 'auth_mode'=>'none'],
         ];
     }
 
