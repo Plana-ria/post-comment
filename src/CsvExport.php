@@ -27,6 +27,21 @@ final class CsvExport
                 $fields[$key] = true;
             }
         }
+        // An empty room must still export its published form headers.
+        if ($fields===[]) {
+            $schema=$db->prepare('SELECT f.definition_json FROM rooms r
+                JOIN form_versions f ON f.id=r.active_form_version_id WHERE r.id=?');
+            $schema->execute([$roomId]);
+            $definition=$schema->fetchColumn();
+            if ($definition!==false) {
+                $form=json_decode($definition,true,512,JSON_THROW_ON_ERROR);
+                foreach (($form['fields']??[]) as $field) {
+                    $key=$field['key']??null;
+                    if (is_string($key) && $key!=='comment'
+                        && ($field['role']??'')!=='comment_body') $fields[$key]=true;
+                }
+            }
+        }
         $allKeys=array_keys($fields);
         $standard=count(array_intersect($allKeys,['last_name','first_name','affiliation','email','mail']))>0;
         $guest=!$standard && in_array('name',$allKeys,true);

@@ -104,6 +104,8 @@ room_id=link.group(1)
 details=request(admin,"route=room-admin&room_id="+room_id)
 must("The test question",details)
 full=request(admin,"route=admin-csv&room_id="+room_id)
+if not full.startswith("time,last_name,first_name,affiliation,mail,messenge"):
+    raise AssertionError("Administrator CSV header is not legacy compatible")
 if "TestSurname" not in full or "TestAffiliation" not in full:
     raise AssertionError("Administrator CSV does not preserve form values")
 import json

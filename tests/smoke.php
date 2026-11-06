@@ -252,6 +252,15 @@ try {
     if ($expo['auth_mode']!=='none' || $expoForm['fields'][2]['label']!=='所属') {
         throw new RuntimeException('EXPO room original form was not preserved');
     }
+    $emptyRoom=$service->createRoom('Empty room','empty-room','required',$adminId);
+    $stream=fopen('php://temp','w+b');
+    $emptyRows=CsvExport::admin($db,$emptyRoom,$stream);
+    rewind($stream);
+    $emptyCsv=stream_get_contents($stream);
+    fclose($stream);
+    if ($emptyRows!==0 || !str_starts_with($emptyCsv,"\xEF\xBB\xBFtime,last_name,first_name,affiliation,mail,messenge")) {
+        throw new RuntimeException('Empty room CSV must preserve standard headers');
+    }
     $guestTemplateRoom=$service->createRoom('Imported guest','old-guest','none',$adminId,'guest');
     $guestForm=$service->form($service->roomById($guestTemplateRoom));
     if (count($guestForm['fields']) !== 2 || $guestForm['fields'][0]['key'] !== 'name') {
