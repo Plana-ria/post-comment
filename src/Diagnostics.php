@@ -23,7 +23,7 @@ final class Diagnostics
             $add('extension_'.$extension,'PHP拡張：'.$extension,extension_loaded($extension),
                 'サーバー管理画面で'.$extension.'を有効にしてください。');
         }
-        $add('https','HTTPS接続',($server['HTTPS']??'')==='on',
+        $add('https','HTTPS接続',postCommentHttps($server),
             'HTTPSのURLでアクセスし、サーバー側でSSLを設定してください。');
         $root=realpath($appRoot);
         $documentRoot=realpath((string)($server['DOCUMENT_ROOT']??''));
