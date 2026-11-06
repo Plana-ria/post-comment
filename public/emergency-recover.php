@@ -32,7 +32,7 @@ try {
         .htmlspecialchars($e->getMessage(),ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8').'</p></html>';
     exit;
 }
-if (!is_file($root.'/config.php') || (($_SERVER['HTTPS']??'')!=='on')) {
+if (!is_file($root.'/config.php') || (!postCommentHttps())) {
     showRecovery('アクセスできません','',404);
 }
 $config=require $root.'/config.php';
