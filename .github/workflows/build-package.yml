@@ -1,0 +1,33 @@
+name: Portable distribution
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+permissions:
+  contents: write
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+      - name: Assemble shared-host package
+        run: |
+          mkdir -p dist/release/post-comment-private dist/release/public
+          cp -R src database storage dist/release/post-comment-private/
+          cp config.example.php README.md dist/release/post-comment-private/
+          cp -R docs dist/release/post-comment-private/
+          cp -R public/. dist/release/public/
+          cd dist/release
+          zip -q -r ../post-comment-portable.zip post-comment-private public
+      - uses: actions/upload-artifact@v4
+        with:
+          name: post-comment-portable
+          path: dist/post-comment-portable.zip
+      - name: Attach distribution to published release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" dist/post-comment-portable.zip --clobber

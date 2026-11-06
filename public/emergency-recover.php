@@ -22,7 +22,16 @@ function showRecovery(string $title, string $body, int $status=200): never
         .'button{padding:.6em 1em}</style><h1>'.escapeRecovery($title).'</h1>'.$body.'</html>';
     exit;
 }
-$root=dirname(__DIR__);
+require __DIR__.'/bootstrap.php';
+try {
+    $root=postCommentRoot();
+} catch (Throwable $e) {
+    http_response_code(503);
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!doctype html><html lang="ja"><meta charset="utf-8"><title>設置エラー</title><h1>設置先を確認してください</h1><p>'
+        .htmlspecialchars($e->getMessage(),ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8').'</p></html>';
+    exit;
+}
 if (!is_file($root.'/config.php') || (($_SERVER['HTTPS']??'')!=='on')) {
     showRecovery('アクセスできません','',404);
 }

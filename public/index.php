@@ -5,18 +5,28 @@ declare(strict_types=1);
  * Phase 1: safe browser-based installation and basic admin sign-in.
  * Deploy with this public/ directory as the *only* document root.
  */
-require dirname(__DIR__) . '/src/Database.php';
-require dirname(__DIR__) . '/src/Migrator.php';
-require dirname(__DIR__) . '/src/FormDefinition.php';
-require dirname(__DIR__) . '/src/ChatService.php';
-require dirname(__DIR__) . '/src/WebRoutes.php';
-require dirname(__DIR__) . '/src/RoomForms.php';
-require dirname(__DIR__) . '/src/ManagementRoutes.php';
-require dirname(__DIR__) . '/src/AuthThrottle.php';
-require dirname(__DIR__) . '/src/BackupService.php';
-require dirname(__DIR__) . '/src/OperationsRoutes.php';
-require dirname(__DIR__) . '/src/LegacyCsvImporter.php';
-require dirname(__DIR__) . '/src/LegacyRoutes.php';
+require __DIR__.'/bootstrap.php';
+try {
+    $appRoot=postCommentRoot();
+} catch (Throwable $e) {
+    http_response_code(503);
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!doctype html><html lang="ja"><meta charset="utf-8"><title>設置エラー</title><h1>設置先を確認してください</h1><p>'
+        .htmlspecialchars($e->getMessage(),ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8').'</p></html>';
+    exit;
+}
+require $appRoot . '/src/Database.php';
+require $appRoot . '/src/Migrator.php';
+require $appRoot . '/src/FormDefinition.php';
+require $appRoot . '/src/ChatService.php';
+require $appRoot . '/src/WebRoutes.php';
+require $appRoot . '/src/RoomForms.php';
+require $appRoot . '/src/ManagementRoutes.php';
+require $appRoot . '/src/AuthThrottle.php';
+require $appRoot . '/src/BackupService.php';
+require $appRoot . '/src/OperationsRoutes.php';
+require $appRoot . '/src/LegacyCsvImporter.php';
+require $appRoot . '/src/LegacyRoutes.php';
 
 use PostComment\Database;
 use PostComment\Migrator;
@@ -55,7 +65,7 @@ function redirect(string $route): never
     exit;
 }
 
-$configFile = dirname(__DIR__) . '/config.php';
+$configFile = $appRoot . '/config.php';
 if (!is_file($configFile)) {
     header('Location: install.php', true, 302);
     exit;
@@ -73,7 +83,9 @@ if ($secure && (($_SERVER['HTTPS'] ?? '') !== 'on')) {
     page('HTTPSが必要です', '<p>このシステムはHTTPS接続で利用してください。</p>', 503);
 }
 session_name($config['session']['name'] ?? 'post_comment_session');
-session_set_cookie_params(['lifetime'=>0,'path'=>'/','secure'=>$secure,'httponly'=>true,'samesite'=>'Lax']);
+$cookiePath=(string)($config['url']['base_path']??'');
+$cookiePath=$cookiePath===''?'/':rtrim($cookiePath,'/').'/';
+session_set_cookie_params(['lifetime'=>0,'path'=>$cookiePath,'secure'=>$secure,'httponly'=>true,'samesite'=>'Lax']);
 session_start();
 
 // Every HTTP request holds a shared lock; restoring a database requires
@@ -90,7 +102,7 @@ try {
     error_log('PostComment database initialization failed: ' . $e->getMessage());
     page('保存領域を確認してください', '<p>データ保存先を開けません。storage ディレクトリの配置と書き込み権限を確認してください。</p>', 503);
 }
-$migrations = dirname(__DIR__) . '/database/migrations';
+$migrations = $appRoot . '/database/migrations';
 try {
     $pending = Migrator::pending($db, $migrations);
 } catch (Throwable $e) {

@@ -5,7 +5,16 @@ declare(strict_types=1);
  * One-time browser installer. It requires proving write access to a file
  * outside the web document root, preventing remote first-visitor takeover.
  */
-$root=dirname(__DIR__);
+require __DIR__.'/bootstrap.php';
+try {
+    $root=postCommentRoot();
+} catch (Throwable $e) {
+    http_response_code(503);
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!doctype html><html lang="ja"><meta charset="utf-8"><title>設置エラー</title><h1>設置先を確認してください</h1><p>'
+        .htmlspecialchars($e->getMessage(),ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8').'</p></html>';
+    exit;
+}
 $configFile=$root.'/config.php';
 $storage=$root.'/storage';
 $proofFile=$storage.'/install-proof.txt';
@@ -84,7 +93,7 @@ if (($_SERVER['REQUEST_METHOD']??'GET')==='POST') {
         'app'=>['name'=>'Post Comment','timezone'=>'Asia/Tokyo','debug'=>false],
         'url'=>['base_url'=>$origin,'base_path'=>$basePath],
         'storage'=>['database_path'=>null,'backup_path'=>null],
-        'session'=>['name'=>'post_comment_session','secure_cookie'=>true],
+        'session'=>['name'=>'pc_'.bin2hex(random_bytes(10)),'secure_cookie'=>true],
         'installation'=>['setup_key'=>''],
         'update'=>['repository'=>'Plana-ria/post-comment','auto_apply'=>false],
     ];

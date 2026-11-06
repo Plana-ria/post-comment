@@ -5,8 +5,18 @@ declare(strict_types=1);
  * Isolated recovery entrypoint. Does not load the main router or keep an
  * active SQLite connection while replacing the database.
  */
-require dirname(__DIR__).'/src/BackupService.php';
-require dirname(__DIR__).'/src/RestoreService.php';
+require __DIR__.'/bootstrap.php';
+try {
+    $root=postCommentRoot();
+} catch (Throwable $e) {
+    http_response_code(503);
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!doctype html><html lang="ja"><meta charset="utf-8"><title>設置エラー</title><h1>設置先を確認してください</h1><p>'
+        .htmlspecialchars($e->getMessage(),ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8').'</p></html>';
+    exit;
+}
+require $root.'/src/BackupService.php';
+require $root.'/src/RestoreService.php';
 
 use PostComment\RestoreService;
 
@@ -34,7 +44,9 @@ if (!extension_loaded('pdo_sqlite')) failRestore('PDO_SQLITEが必要です。',
 $secure=(bool)($config['session']['secure_cookie']??true);
 if ($secure && (($_SERVER['HTTPS']??'')!=='on')) failRestore('HTTPSでアクセスしてください。',403);
 session_name($config['session']['name']??'post_comment_session');
-session_set_cookie_params(['lifetime'=>0,'path'=>'/','secure'=>$secure,'httponly'=>true,'samesite'=>'Lax']);
+$cookiePath=(string)($config['url']['base_path']??'');
+$cookiePath=$cookiePath===''?'/':rtrim($cookiePath,'/').'/';
+session_set_cookie_params(['lifetime'=>0,'path'=>$cookiePath,'secure'=>$secure,'httponly'=>true,'samesite'=>'Lax']);
 session_start();
 $csrf=(string)($_SESSION['csrf']??'');
 if ($csrf==='' || !is_string($_POST['csrf']??null) || !hash_equals($csrf,$_POST['csrf'])) {

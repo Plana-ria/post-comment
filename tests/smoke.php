@@ -1,5 +1,11 @@
 <?php
 declare(strict_types=1);
+require dirname(__DIR__) . '/public/bootstrap.php';
+$_SERVER['DOCUMENT_ROOT']=dirname(__DIR__) . '/public';
+if (postCommentRoot() !== realpath(dirname(__DIR__))) throw new RuntimeException('Bootstrap root discovery failed');
+$_SERVER['DOCUMENT_ROOT']=dirname(__DIR__);
+try { postCommentRoot(); throw new RuntimeException('Unsafe document root allowed'); } catch (RuntimeException $e) { if ($e->getMessage()==='Unsafe document root allowed') throw $e; }
+$_SERVER['DOCUMENT_ROOT']=dirname(__DIR__) . '/public';
 require dirname(__DIR__) . '/src/Database.php';
 require dirname(__DIR__) . '/src/Migrator.php';
 require dirname(__DIR__) . '/src/FormDefinition.php';

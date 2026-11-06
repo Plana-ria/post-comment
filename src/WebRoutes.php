@@ -117,7 +117,7 @@ final class WebRoutes
                     if ($anon['token'] !== null) {
                         $https = (($_SERVER['HTTPS'] ?? '') === 'on');
                         setcookie($cookieName, $anon['token'], [
-                            'expires'=>time()+86400, 'path'=>'/', 'secure'=>$https, 'httponly'=>true, 'samesite'=>'Lax'
+                            'expires'=>time()+86400, 'path'=>(function (): string { $path=dirname((string)($_SERVER['SCRIPT_NAME']??'/index.php')); return $path==='/' ? '/' : rtrim($path,'/').'/'; })(), 'secure'=>$https, 'httponly'=>true, 'samesite'=>'Lax'
                         ]);
                         // During the initial response, the new token is not in $_COOKIE.
                         $token = $anon['token'];
