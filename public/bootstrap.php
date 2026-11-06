@@ -38,3 +38,14 @@ function postCommentRoot(): string
     }
     throw new RuntimeException('非公開アプリ本体が見つかりません。配置とlocation.phpを確認してください。');
 }
+
+
+/**
+ * Recognize server-provided TLS indicators without trusting unverified proxy headers.
+ */
+function postCommentHttps(?array $server=null): bool
+{
+    $server ??= $_SERVER;
+    $flag=strtolower((string)($server['HTTPS']??''));
+    return in_array($flag,['on','1','true'],true) || (int)($server['SERVER_PORT']??0)===443;
+}
