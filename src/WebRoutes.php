@@ -120,6 +120,18 @@ final class WebRoutes
                 $cookieName = 'pc_anon_' . substr(hash('sha256',$room['id']),0,16);
                 $token = is_string($_COOKIE[$cookieName] ?? null) ? $_COOKIE[$cookieName] : null;
                 if ($room['status'] === 'active' && $route === 'room') {
+                    if ($service->anonymousId($room['id'],$token) === null) {
+                        // Rate-limit newly minted anonymous identities, not normal
+                        // page views from visitors who already have a valid cookie.
+                        // A high threshold supports many students behind one NAT.
+                        $ip=(string)($_SERVER['REMOTE_ADDR'] ?? '');
+                        $throttle=new AuthThrottle($db);
+                        if (!$throttle->allow('anonymous_issue_ip',$ip)) {
+                            page('アクセスが集中しています',
+                                '<p>少し時間をおいて再度アクセスしてください。</p>',429);
+                        }
+                        $throttle->failure('anonymous_issue_ip',$ip,2000,900);
+                    }
                     $anon = $service->acceptAnonymous($room['id'],$token);
                     $anonId = $anon['id'];
                     if ($anon['token'] !== null) {
