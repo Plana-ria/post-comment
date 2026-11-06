@@ -10,6 +10,7 @@ try { $root=postCommentRoot(); }
 catch (Throwable $e) { http_response_code(503); exit('設置構成を確認してください。'); }
 require $root.'/src/BackupService.php';
 require $root.'/src/ReleaseChecker.php';
+require $root.'/src/ReleaseDownloader.php';
 require $root.'/src/SignedPackage.php';
 require $root.'/src/UpdateService.php';
 
@@ -66,21 +67,39 @@ if (($_SERVER['REQUEST_METHOD']??'GET')==='POST') {
     if (!is_string($_POST['csrf']??null) || !hash_equals((string)$csrf,$_POST['csrf'])) {
         updatePage('操作を確認してください','<p>画面を開き直してください。</p>',403);
     }
-    $archive=$_FILES['archive']??null;
-    $signature=$_FILES['signature']??null;
-    foreach ([$archive,$signature] as $upload) {
-        if (!is_array($upload) || ($upload['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK ||
-            !is_uploaded_file((string)($upload['tmp_name']??''))) {
-            updatePage('ファイルを確認してください','<p>ZIPと署名ファイルを両方選択してください。</p>',400);
+    $downloaded=[];
+    if (($_POST['mode']??'')==='github') {
+        try {
+            $latest=\PostComment\ReleaseChecker::latest();
+            if (!$latest || version_compare($latest['version'],\PostComment\ReleaseChecker::currentVersion($root),'<=')) {
+                updatePage('更新はありません','<p>適用できる新しい正式リリースはありません。</p>');
+            }
+            if (!is_dir($backupDir) && !mkdir($backupDir,0700,true)) {
+                throw new RuntimeException('非公開のバックアップ領域を作成できません。');
+            }
+            $downloaded=\PostComment\ReleaseDownloader::download($latest,$backupDir);
+            [$archivePath,$signaturePath]=$downloaded;
+        } catch (Throwable $e) {
+            error_log('GitHub release download failed: '.$e->getMessage());
+            updatePage('リリースを取得できませんでした',
+                '<p>'.updateEscape($e->getMessage()).'</p><p>手動ZIPアップロードをご利用ください。</p>',503);
         }
+    } else {
+        $archive=$_FILES['archive']??null;
+        $signature=$_FILES['signature']??null;
+        foreach ([$archive,$signature] as $upload) {
+            if (!is_array($upload) || ($upload['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK ||
+                !is_uploaded_file((string)($upload['tmp_name']??''))) {
+                updatePage('ファイルを確認してください','<p>ZIPと署名ファイルを両方選択してください。</p>',400);
+            }
+        }
+        if ((int)($archive['size']??0)>50*1024*1024 ||
+            (int)($signature['size']??0)>4096) updatePage('ファイルが大きすぎます','',413);
+        $archivePath=(string)$archive['tmp_name'];
+        $signaturePath=(string)$signature['tmp_name'];
     }
-    if ((int)($archive['size']??0)>50*1024*1024 ||
-        (int)($signature['size']??0)>4096) updatePage('ファイルが大きすぎます','',413);
     try {
-        $result=UpdateService::apply(
-            $root,__DIR__,(string)$archive['tmp_name'],(string)$signature['tmp_name'],
-            $key,$dbPath,$backupDir
-        );
+        $result=UpdateService::apply($root,__DIR__,$archivePath,$signaturePath,$key,$dbPath,$backupDir);
         unset($_SESSION['admin_id'],$_SESSION['admin_auth_version']);
         session_regenerate_id(true);
         updatePage('更新が完了しました',
@@ -93,10 +112,13 @@ if (($_SERVER['REQUEST_METHOD']??'GET')==='POST') {
         updatePage('更新できませんでした',
             '<p>'.updateEscape($e->getMessage()).'</p>'
             .'<p>更新前の状態とバックアップを確認してください。署名に問題があるZIPは適用されません。</p>',503);
+    } finally {
+        foreach ($downloaded as $file) @unlink($file);
     }
 }
 if (($_SERVER['REQUEST_METHOD']??'GET')!=='GET') updatePage('操作できません','',405);
 updatePage('署名付きリリースの適用',
+    '<form method="post"><input type="hidden" name="csrf" value="'.updateEscape($csrf).'"><input type="hidden" name="mode" value="github"><button>GitHubの最新正式版を取得して適用</button></form>'
     '<p>GitHub Releasesから <code>post-comment-portable.zip</code> と <code>post-comment-portable.zip.sig</code> を取得してください。'
     .'署名検証後、更新前のSQLiteバックアップと旧コードの退避を行い、失敗時には元の状態への復旧を試みます。</p>'
     .'<form method="post" enctype="multipart/form-data">'

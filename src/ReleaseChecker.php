@@ -19,6 +19,15 @@ final class ReleaseChecker
         $tag=(string)($payload['tag_name']??'');
         if (!preg_match('/^v([0-9]+)\.([0-9]+)\.([0-9]+)$/',$tag)) return null;
         if (!empty($payload['draft']) || !empty($payload['prerelease'])) return null;
+        $signatureUrl=null;
+        foreach (($payload['assets']??[]) as $asset) {
+            if (!is_array($asset) || ($asset['name']??'')!=='post-comment-portable.zip.sig') continue;
+            $candidate=(string)($asset['browser_download_url']??'');
+            if ($candidate==='https://github.com/Plana-ria/post-comment/releases/download/'.$tag.'/post-comment-portable.zip.sig') {
+                $signatureUrl=$candidate;
+            }
+        }
+        if ($signatureUrl===null) return null;
         foreach (($payload['assets']??[]) as $asset) {
             if (!is_array($asset) || ($asset['name']??'')!=='post-comment-portable.zip') continue;
             $uri=(string)($asset['browser_download_url']??'');
@@ -30,6 +39,7 @@ final class ReleaseChecker
                 'tag'=>$tag,
                 'url'=>$uri,
                 'digest'=>$digest,
+                'signature_url'=>$signatureUrl,
                 'published_at'=>(string)($payload['published_at']??''),
             ];
         }

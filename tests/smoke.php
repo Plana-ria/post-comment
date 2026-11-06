@@ -14,6 +14,7 @@ require dirname(__DIR__) . '/src/CsvExport.php';
 require dirname(__DIR__) . '/src/RoomForms.php';
 require dirname(__DIR__) . '/src/LegacyRoomCatalog.php';
 require dirname(__DIR__) . '/src/SignedPackage.php';
+require dirname(__DIR__) . '/src/ReleaseDownloader.php';
 require dirname(__DIR__) . '/src/UpdateService.php';
 require dirname(__DIR__) . '/src/AdministratorService.php';
 require dirname(__DIR__) . '/src/AuthThrottle.php';
@@ -31,6 +32,7 @@ use PostComment\CsvExport;
 use PostComment\RoomForms;
 use PostComment\LegacyRoomCatalog;
 use PostComment\SignedPackage;
+use PostComment\ReleaseDownloader;
 use PostComment\UpdateService;
 use PostComment\AdministratorService;
 use PostComment\AuthThrottle;
@@ -297,6 +299,9 @@ try {
             'name'=>'post-comment-portable.zip',
             'browser_download_url'=>'https://github.com/Plana-ria/post-comment/releases/download/v1.2.3/post-comment-portable.zip',
             'digest'=>'sha256:'.str_repeat('a',64),
+        ],[
+            'name'=>'post-comment-portable.zip.sig',
+            'browser_download_url'=>'https://github.com/Plana-ria/post-comment/releases/download/v1.2.3/post-comment-portable.zip.sig',
         ]],
     ];
     if ((ReleaseChecker::fromApi($fakeRelease)['version']??null)!=='1.2.3') {

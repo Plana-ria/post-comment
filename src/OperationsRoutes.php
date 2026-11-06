@@ -70,7 +70,7 @@ final class OperationsRoutes
                 $body.='<p>最新情報を取得できませんでした。GitHubの接続とサーバー設定を確認してください。</p>';
             }
             $body.='<p><a href="update.php">署名付き配布ZIPをアップロードして更新</a></p>'
-                .'<p>現在は署名付きZIPと署名ファイルを手元でダウンロードしてから適用します。公開鍵の初期設定が必要です。</p>'
+                .'<p>GitHubからの取得・適用と手動ZIPアップロードに対応します。公開鍵の初期設定が必要です。</p>'
                 .'<p><a href="?route=operations">システム保守に戻る</a></p>';
             page('GitHub更新確認',$body);
         }
