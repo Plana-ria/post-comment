@@ -134,7 +134,24 @@ try {
     if ($service->anonymousId($anonymousRoom, $anon['token']) !== $anon['id']) {
         throw new RuntimeException('Anonymous session verification failed');
     }
+    // Expired, unused identities may be cleaned, but identities referenced by
+    // comments must remain for historical foreign-key integrity.
+    $unused=$service->acceptAnonymous($anonymousRoom,null);
+    $db->prepare('UPDATE anonymous_sessions SET expires_at=? WHERE id IN (?,?)')
+        ->execute(['2020-01-01T00:00:00Z',$anon['id'],$unused['id']]);
+    // Referenced identity is retained once the comment is saved below.
     $service->submit($guestRoom, $service->form($guestRoom), $input, null, $anon['id']);
+    $pruned=$service->pruneUnusedAnonymousSessions();
+    $checkUnused=$db->prepare('SELECT 1 FROM anonymous_sessions WHERE id=?');
+    $checkUnused->execute([$unused['id']]);
+    if ($pruned < 1 || $checkUnused->fetchColumn()!==false) {
+        throw new RuntimeException('Expired orphan session was not removed');
+    }
+    $checkExisting=$db->prepare('SELECT 1 FROM anonymous_sessions WHERE id=?');
+    $checkExisting->execute([$anon['id']]);
+    if (!$checkExisting->fetchColumn()) {
+        throw new RuntimeException('Expired identity referenced by a post was deleted');
+    }
     if (count($service->ownComments($anonymousRoom, null, $anon['id'])) !== 1) {
         throw new RuntimeException('Anonymous export failed');
     }
