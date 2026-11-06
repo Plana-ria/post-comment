@@ -60,8 +60,13 @@ final class WebRoutes
             $login = trim((string)($_POST['login_id'] ?? ''));
             $code = (string)($_POST['login_code'] ?? '');
             // Rate limiting is required before exposing to production.
+            $throttle = new AuthThrottle($db);
+            $identity = strtolower($login).'|'.(string)($_SERVER['REMOTE_ADDR'] ?? '');
+            if (!$throttle->allow('participant', $identity)) page('ログイン制限中', '<p>しばらくしてからお試しください。</p>',429);
             $user = $service->authenticateUser($login, $code);
+            if (!$user) $throttle->failure('participant',$identity);
             if (!$user) page('ログインできません', '<p>IDまたはコードを確認してください。</p><p><a href="?route=room&amp;slug='.rawurlencode($room['slug']).'">戻る</a></p>', 401);
+            $throttle->success('participant',$identity);
             session_regenerate_id(true);
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['user_code_version'] = (int)$user['code_version'];
