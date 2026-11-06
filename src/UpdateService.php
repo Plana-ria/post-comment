@@ -131,8 +131,9 @@ final class UpdateService
             $newDb=new PDO('sqlite:'.$databasePath,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
             $newDb->exec('PRAGMA foreign_keys=ON');
             Migrator::migrate($newDb,$root.'/database/migrations');
-            if ($newDb->query('PRAGMA integrity_check')->fetchColumn()!=='ok') {
-                throw new RuntimeException('更新後DB整合性検証に失敗しました。');
+            if ($newDb->query('PRAGMA integrity_check')->fetchColumn()!=='ok'
+                || $newDb->query('PRAGMA foreign_key_check')->fetch(PDO::FETCH_ASSOC)!==false) {
+                throw new RuntimeException('更新後DBの物理整合性または参照関係の検証に失敗しました。');
             }
             $newDb=null;
             return [
