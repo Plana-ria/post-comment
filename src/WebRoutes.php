@@ -63,7 +63,7 @@ final class WebRoutes
             if (!$user) page('ログインできません', '<p>IDまたはコードを確認してください。</p><p><a href="?route=room&amp;slug='.rawurlencode($room['slug']).'">戻る</a></p>', 401);
             session_regenerate_id(true);
             $_SESSION['user_id'] = $user['id'];
-            redirect('room&slug=' . $room['slug']);
+            header('Location: ?route=room&slug=' . rawurlencode($room['slug']), true, 303); exit;
         }
         if ($route === 'user-logout') {
             if ($method !== 'POST') page('操作できません', '', 405);
@@ -116,7 +116,7 @@ final class WebRoutes
                 checkCsrf();
                 try {
                     $service->submit($room,$service->form($room),$_POST,$userId,$anonId);
-                    redirect('room&slug='.$room['slug']);
+                    header('Location: ?route=room&slug=' . rawurlencode($room['slug']), true, 303); exit;
                 } catch (Throwable $e) { self::error($e); }
             }
             if ($route === 'own-csv') {
@@ -174,7 +174,7 @@ final class WebRoutes
                         .'<p><a href="?route=room-admin&amp;room_id='.rawurlencode($roomId).'">戻る</a></p>');
                 } catch (Throwable $e) { self::error($e); }
             }
-            $comments=$service->adminComments($roomId);
+            $comments=$service->adminComments($roomId, 0, $route === 'admin-csv' ? null : 500);
             if ($route === 'admin-csv') {
                 if ($method !== 'GET') page('操作できません', '', 405);
                 // Include all recorded form fields (including fields from previous form versions).
