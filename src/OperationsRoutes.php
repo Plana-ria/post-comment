@@ -11,7 +11,7 @@ final class OperationsRoutes
 {
     public static function handle(PDO $db, array $config, string $route, string $method): bool
     {
-        if (!in_array($route,['operations','updates','download-backup','admin-reset'],true)) return false;
+        if (!in_array($route,['operations','updates','download-backup','admin-reset','legacy-rooms'],true)) return false;
         $stmt = $db->prepare("SELECT id,login_id,role FROM administrators WHERE id=? AND disabled_at IS NULL");
         $stmt->execute([(string)($_SESSION['admin_id']??'')]);
         $admin = $stmt->fetch();
@@ -19,6 +19,36 @@ final class OperationsRoutes
             page('権限がありません','<p>システム管理者の認証が必要です。</p>',403);
         }
 
+        if ($route === 'legacy-rooms') {
+            if ($method === 'POST') {
+                checkCsrf();
+                $selected = $_POST['rooms'] ?? [];
+                if (!is_array($selected) || count($selected) > 18) page('入力エラー','',400);
+                foreach ($selected as $value) {
+                    if (!is_string($value) || !preg_match('/^\d{1,2}$/',$value)) page('入力エラー','',400);
+                }
+                try {
+                    $summary=LegacyRoomCatalog::import(new ChatService($db),new RoomForms($db),$admin['id'],$selected);
+                    page('旧ルームのひな形を作成しました',
+                        '<p>作成：'.(int)$summary['created'].'件、既存のためスキップ：'.(int)$summary['skipped'].'件</p>'
+                        .'<p>投稿データは別途、各ルームのCSVインポート機能で取り込んでください。</p>'
+                        .'<p><a href="?route=rooms">ルーム一覧へ</a></p>');
+                } catch (Throwable $e) {
+                    error_log('Legacy room template import failed: '.$e->getMessage());
+                    page('ルーム作成失敗','<p>一部だけ作成された可能性があります。ルーム一覧を確認してください。</p>',503);
+                }
+            }
+            if ($method !== 'GET') page('操作できません','',405);
+            $body='<p>旧システムのZIPから抽出したルーム名とフォーム種別です。旧認証情報・投稿データは取り込みません。新しいルームURLになります。</p>'
+                .'<form method="post" action="?route=legacy-rooms"><input type="hidden" name="csrf" value="'.html(csrfToken()).'">';
+            foreach (LegacyRoomCatalog::entries() as $entry) {
+                $body.='<label><input type="checkbox" name="rooms[]" value="'.html($entry['id']).'"> '
+                    .html($entry['name']).'（'.($entry['auth_mode']==='none'?'認証なし':'個人認証').'）</label>';
+            }
+            $body.='<button>選択した旧ルームのひな形を作成する</button></form>'
+                .'<p>作成済みのURL識別子は再作成しません。変更済みフォームを上書きしません。</p>';
+            page('旧ルームの移行支援',$body);
+        }
         if ($route === 'updates') {
             if ($method !== 'GET') page('操作できません','',405);
             $current=ReleaseChecker::currentVersion(dirname(__DIR__));
@@ -92,7 +122,7 @@ final class OperationsRoutes
         }
 
         $admins=$db->query('SELECT id,login_id,role FROM administrators WHERE disabled_at IS NULL ORDER BY login_id')->fetchAll();
-        $body='<p><a href="?route=updates">GitHubの最新版を確認する</a></p><h2>バックアップを取得</h2><p>SQLiteの一貫したコピーをダウンロードします。'
+        $body='<p><a href="?route=updates">GitHubの最新版を確認する</a> | <a href="?route=legacy-rooms">旧ルームのひな形を取り込む</a></p><h2>バックアップを取得</h2><p>SQLiteの一貫したコピーをダウンロードします。'
             .'投稿・認証情報を含むため、取得したファイルは安全な場所に保管してください。</p>'
             .'<form method="post" action="?route=download-backup">'
             .'<input type="hidden" name="csrf" value="'.html(csrfToken()).'"><button>DBをバックアップ</button></form>'

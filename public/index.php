@@ -30,6 +30,7 @@ require $appRoot . '/src/OperationsRoutes.php';
 require $appRoot . '/src/ReleaseChecker.php';
 require $appRoot . '/src/LegacyCsvImporter.php';
 require $appRoot . '/src/LegacyRoutes.php';
+require $appRoot . '/src/LegacyRoomCatalog.php';
 
 use PostComment\Database;
 use PostComment\Migrator;

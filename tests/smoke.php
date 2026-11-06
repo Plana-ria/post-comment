@@ -12,6 +12,7 @@ require dirname(__DIR__) . '/src/FormDefinition.php';
 require dirname(__DIR__) . '/src/ChatService.php';
 require dirname(__DIR__) . '/src/CsvExport.php';
 require dirname(__DIR__) . '/src/RoomForms.php';
+require dirname(__DIR__) . '/src/LegacyRoomCatalog.php';
 require dirname(__DIR__) . '/src/AdministratorService.php';
 require dirname(__DIR__) . '/src/AuthThrottle.php';
 require dirname(__DIR__) . '/src/BackupService.php';
@@ -26,6 +27,7 @@ use PostComment\FormDefinition;
 use PostComment\ChatService;
 use PostComment\CsvExport;
 use PostComment\RoomForms;
+use PostComment\LegacyRoomCatalog;
 use PostComment\AdministratorService;
 use PostComment\AuthThrottle;
 use PostComment\BackupService;
@@ -209,6 +211,16 @@ try {
         ]]);
         throw new RuntimeException('Form missing required body accepted');
     } catch (InvalidArgumentException $e) {}
+    if (count(LegacyRoomCatalog::entries()) !== 18) throw new RuntimeException('Missing legacy room definitions');
+    $imported=LegacyRoomCatalog::import($service,new RoomForms($db),$adminId,['4','18']);
+    if ($imported['created']!==2) throw new RuntimeException('Legacy room templates could not be created');
+    $again=LegacyRoomCatalog::import($service,new RoomForms($db),$adminId,['4','18']);
+    if ($again['skipped']!==2) throw new RuntimeException('Legacy room import is not idempotent');
+    $expo=$service->roomBySlug('legacy-room-18');
+    $expoForm=$service->form($expo);
+    if ($expo['auth_mode']!=='none' || $expoForm['fields'][2]['label']!=='所属') {
+        throw new RuntimeException('EXPO room original form was not preserved');
+    }
     $guestTemplateRoom=$service->createRoom('Imported guest','old-guest','none',$adminId,'guest');
     $guestForm=$service->form($service->roomById($guestTemplateRoom));
     if (count($guestForm['fields']) !== 2 || $guestForm['fields'][0]['key'] !== 'name') {

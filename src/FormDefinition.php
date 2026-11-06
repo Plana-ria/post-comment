@@ -17,7 +17,7 @@ final class FormDefinition
             'fields' => [
                 ['key' => 'last_name', 'type' => 'text', 'label' => '姓', 'required' => true],
                 ['key' => 'first_name', 'type' => 'text', 'label' => '名', 'required' => true],
-                ['key' => 'affiliation', 'type' => 'text', 'label' => '所属', 'required' => true],
+                ['key' => 'affiliation', 'type' => 'text', 'label' => '所属（学部・学科など）', 'required' => true],
                 ['key' => 'email', 'type' => 'email', 'label' => 'メールアドレス', 'required' => false],
                 ['key' => 'comment', 'type' => 'textarea', 'label' => 'コメント', 'required' => true, 'role' => 'comment_body'],
             ],
