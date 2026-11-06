@@ -119,7 +119,7 @@ if (($_SERVER['REQUEST_METHOD']??'GET')==='POST') {
 if (($_SERVER['REQUEST_METHOD']??'GET')!=='GET') updatePage('操作できません','',405);
 updatePage('署名付きリリースの適用',
     '<form method="post"><input type="hidden" name="csrf" value="'.updateEscape($csrf).'"><input type="hidden" name="mode" value="github"><button>GitHubの最新正式版を取得して適用</button></form>'
-    '<p>GitHub Releasesから <code>post-comment-portable.zip</code> と <code>post-comment-portable.zip.sig</code> を取得してください。'
+    .'<p>GitHub Releasesから <code>post-comment-portable.zip</code> と <code>post-comment-portable.zip.sig</code> を取得してください。'
     .'署名検証後、更新前のSQLiteバックアップと旧コードの退避を行い、失敗時には元の状態への復旧を試みます。</p>'
     .'<form method="post" enctype="multipart/form-data">'
     .'<input type="hidden" name="csrf" value="'.updateEscape($csrf).'">'
