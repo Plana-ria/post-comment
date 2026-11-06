@@ -12,7 +12,7 @@ final class RoomForms
 {
     public function __construct(private PDO $db) {}
 
-    public function publish(string $roomId, array $definition, string $editorId): int
+    public function publish(string $roomId, array $definition, string $editorId, ?string $expectedActiveVersion = null): int
     {
         FormDefinition::validate($definition);
         $serialized = json_encode($definition, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
@@ -20,9 +20,13 @@ final class RoomForms
         $now = gmdate('Y-m-d\TH:i:s\Z');
         $this->db->exec('BEGIN IMMEDIATE');
         try {
-            $room = $this->db->prepare('SELECT id FROM rooms WHERE id = ?');
+            $room = $this->db->prepare('SELECT id,active_form_version_id FROM rooms WHERE id = ?');
             $room->execute([$roomId]);
-            if (!$room->fetch()) throw new RuntimeException('Room not found');
+            $currentRoom = $room->fetch();
+            if (!$currentRoom) throw new RuntimeException('Room not found');
+            if ($expectedActiveVersion !== null && $currentRoom['active_form_version_id'] !== $expectedActiveVersion) {
+                throw new RuntimeException('The form has been updated by another administrator. Please reload.');
+            }
             $number = $this->db->prepare('SELECT COALESCE(MAX(version_no),0)+1 FROM form_versions WHERE room_id = ?');
             $number->execute([$roomId]);
             $version = (int)$number->fetchColumn();

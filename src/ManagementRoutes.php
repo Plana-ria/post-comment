@@ -57,7 +57,7 @@ final class ManagementRoutes
                     if (!hash_equals((string)$room['active_form_version_id'], (string)($_POST['original_version']??''))) {
                         throw new \RuntimeException('Another administrator has updated this form. Reload before saving.');
                     }
-                    $version=$editor->publish($roomId,$newForm,$admin['id']);
+                    $version=$editor->publish($roomId,$newForm,$admin['id'],(string)($_POST['original_version']??''));
                     page('フォームを公開しました','<p>バージョン '.(int)$version.' を公開しました。過去の投稿は変更されません。</p>'
                         .'<p><a href="?route=form-edit&amp;room_id='.rawurlencode($roomId).'">フォーム編集へ</a></p>'
                         .'<p><a href="?route=room&amp;slug='.rawurlencode($room['slug']).'">投稿画面を確認</a></p>');

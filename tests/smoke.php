@@ -10,6 +10,7 @@ require dirname(__DIR__) . '/src/Database.php';
 require dirname(__DIR__) . '/src/Migrator.php';
 require dirname(__DIR__) . '/src/FormDefinition.php';
 require dirname(__DIR__) . '/src/ChatService.php';
+require dirname(__DIR__) . '/src/CsvExport.php';
 require dirname(__DIR__) . '/src/RoomForms.php';
 require dirname(__DIR__) . '/src/AuthThrottle.php';
 require dirname(__DIR__) . '/src/BackupService.php';
@@ -22,6 +23,7 @@ use PostComment\Database;
 use PostComment\Migrator;
 use PostComment\FormDefinition;
 use PostComment\ChatService;
+use PostComment\CsvExport;
 use PostComment\RoomForms;
 use PostComment\AuthThrottle;
 use PostComment\BackupService;
@@ -144,6 +146,31 @@ try {
     $linked=$past->fetchAll(PDO::FETCH_COLUMN);
     if (count($linked)!==2 || $linked[0]!==$previousVersion || $linked[1]!==$room['active_form_version_id']) {
         throw new RuntimeException('Historical form versions were not preserved');
+    }
+    try {
+        $forms->publish($authenticatedRoom,$new,$adminId,$previousVersion);
+        throw new RuntimeException('Stale form submission unexpectedly succeeded');
+    } catch (RuntimeException $e) {
+        if (str_contains($e->getMessage(),'unexpectedly succeeded')) throw $e;
+    }
+    $stream = fopen('php://temp','w+b');
+    $exportCount = CsvExport::admin($db,$authenticatedRoom,$stream);
+    rewind($stream);
+    $csvBytes = stream_get_contents($stream);
+    fclose($stream);
+    if ($exportCount !== 2 || !str_contains($csvBytes,'category')
+        || !str_contains($csvBytes,'University')) {
+        throw new RuntimeException('Full historical admin export missing fields');
+    }
+    $stream = fopen('php://temp','w+b');
+    CsvExport::own($db,$authenticatedRoom,$user['id'],null,$stream);
+    rewind($stream);
+    $ownCsv = stream_get_contents($stream);
+    fclose($stream);
+    if (!str_starts_with($ownCsv,"\xEF\xBB\xBFtime,comment")
+        || str_contains($ownCsv,'University')
+        || str_contains($ownCsv,'last_name')) {
+        throw new RuntimeException('Personal data leaked into participant CSV');
     }
     $editor = [
         'title'=>'アンケート','description'=>'テスト','submit_label'=>'送信',
