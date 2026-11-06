@@ -444,6 +444,31 @@ try {
         } catch (RuntimeException $e) {
             if (str_contains($e->getMessage(),'accepted')) throw $e;
         }
+        // Even a correctly signed archive is invalid if its paths can escape
+        // the intended install directories.
+        $unsafe=$dir.'/unsafe-path.zip';
+        $unsafeZip=new ZipArchive();
+        if ($unsafeZip->open($unsafe,ZipArchive::CREATE)!==true) {
+            throw new RuntimeException('Cannot create unsafe ZIP fixture');
+        }
+        foreach ([
+            'post-comment-private/VERSION'=>"1.2.5\n",
+            'post-comment-private/src/Database.php'=>'<?php',
+            'post-comment-private/src/Migrator.php'=>'<?php',
+            'public/index.php'=>'<?php',
+            'public/bootstrap.php'=>'<?php',
+            'public/../../escape.php'=>'malicious',
+        ] as $name=>$bytes) $unsafeZip->addFromString($name,$bytes);
+        $unsafeZip->close();
+        file_put_contents($signature,base64_encode(
+            sodium_crypto_sign_detached(hash_file('sha256',$unsafe,true),$private)));
+        try {
+            SignedPackage::inspect($unsafe,$signature,$public,'1.0.0');
+            throw new RuntimeException('Zip traversal unexpectedly accepted');
+        } catch (RuntimeException $e) {
+            if (str_contains($e->getMessage(),'unexpectedly accepted')) throw $e;
+        }
+        unlink($unsafe);
         // Integration test: signed ZIP replaces code, preserves SQLite and creates backups.
         file_put_contents($signature,base64_encode(sodium_crypto_sign_detached(hash_file('sha256',$fixture,true),$private)));
         $site=$dir.'/updater-site';
