@@ -193,7 +193,7 @@ final class WebRoutes
                 }
                 self::csv('room-comments.csv',array_merge(['time','comment'],$keys),$records);
             }
-            $body='<p><a href="?route=admin-csv&amp;room_id='.rawurlencode($roomId).'">全件CSVを取得</a></p>';
+            $body='<p><a href="?route=admin-csv&amp;room_id='.rawurlencode($roomId).'">全件CSVを取得</a> | <a href="?route=form-edit&amp;room_id='.rawurlencode($roomId).'">投稿フォームを編集</a></p>';
             $body.='<h2>コメント（最新500件まで）</h2>';
             foreach ($comments as $entry) {
                 $values=json_decode($entry['submitted_values_json'],true,512,JSON_THROW_ON_ERROR);
