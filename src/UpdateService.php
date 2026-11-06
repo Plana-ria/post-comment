@@ -108,6 +108,7 @@ final class UpdateService
                 }
             }
             foreach (array_keys($package['entries']) as $entry) {
+                if ($entry === 'public/update.php') continue; // Preserve independent recovery entrypoint.
                 $target=self::target($entry,$root,$webRoot);
                 $source=$stage.'/'.$entry;
                 $saved=$codeBackup.'/'.$entry;
