@@ -440,6 +440,46 @@ try {
             throw new RuntimeException('Signed updater damaged database');
         }
         $updatedDb=null;
+        // Failure injection: a fully signed package with invalid SQL must
+        // restore code and DB when the migration fails.
+        $badArchive=$dir.'/bad-migration.zip';
+        $badSig=$dir.'/bad-migration.sig';
+        $badZip=new ZipArchive();
+        if ($badZip->open($badArchive,ZipArchive::CREATE)!==true) throw new RuntimeException('Cannot stage failing update');
+        foreach ([
+            'post-comment-private/VERSION'=>"1.2.4\n",
+            'post-comment-private/src/Database.php'=>'new DB code after invalid migration',
+            'post-comment-private/src/Migrator.php'=>'new migrator code',
+            'post-comment-private/database/migrations/999_fail.sql'=>'THIS IS NOT SQL;',
+            'public/index.php'=>'bad release code',
+            'public/bootstrap.php'=>'bad release bootstrap',
+            'public/update.php'=>'must not overwrite recovery tool',
+        ] as $filename=>$data) $badZip->addFromString($filename,$data);
+        $badZip->close();
+        file_put_contents($badSig,base64_encode(
+            sodium_crypto_sign_detached(hash_file('sha256',$badArchive,true),$private)));
+        try {
+            UpdateService::apply($site,$webroot,$badArchive,$badSig,$public,
+                $siteStorage.'/database.sqlite',$updateBackups);
+            throw new RuntimeException('Broken migration was unexpectedly accepted');
+        } catch (RuntimeException $e) {
+            if (str_contains($e->getMessage(),'unexpectedly accepted')) throw $e;
+        }
+        if (trim(file_get_contents($site.'/VERSION'))!=='1.2.3'
+            || file_get_contents($webroot.'/index.php')!=='<?php'
+            || file_get_contents($webroot.'/update.php')!=='independent recovery updater'
+            || file_exists($siteMigrations.'/999_fail.sql')
+            || is_file($siteStorage.'/maintenance.update')) {
+            throw new RuntimeException('Failed migration did not fully restore code');
+        }
+        $recoveredDb=new PDO('sqlite:'.$siteStorage.'/database.sqlite');
+        if ($recoveredDb->query('PRAGMA integrity_check')->fetchColumn()!=='ok'
+            || $recoveredDb->query('SELECT COUNT(*) FROM administrators')->fetchColumn()<1) {
+            throw new RuntimeException('Failed migration damaged database');
+        }
+        $recoveredDb=null;
+        @unlink($badArchive);
+        @unlink($badSig);
         foreach ([$site,$webroot,$updateBackups] as $folder) {
             $iterator=new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($folder,FilesystemIterator::SKIP_DOTS),
