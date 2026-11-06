@@ -40,8 +40,9 @@ final class BackupService
         }
         $verify = new PDO('sqlite:'.$path,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
         $result = $verify->query('PRAGMA integrity_check')->fetchColumn();
+        $foreignKeyFailure=$verify->query('PRAGMA foreign_key_check')->fetch(PDO::FETCH_ASSOC);
         $verify = null;
-        if ($result !== 'ok') {
+        if ($result !== 'ok' || $foreignKeyFailure !== false) {
             @unlink($path);
             throw new RuntimeException('バックアップの整合性を確認できませんでした。');
         }
@@ -68,8 +69,9 @@ final class BackupService
             throw new RuntimeException('復元元ファイルが不正です。');
         }
         $verify = new PDO('sqlite:'.$path,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-        if ($verify->query('PRAGMA integrity_check')->fetchColumn() !== 'ok') {
-            throw new RuntimeException('SQLiteファイルの整合性に問題があります。');
+        if ($verify->query('PRAGMA integrity_check')->fetchColumn() !== 'ok'
+            || $verify->query('PRAGMA foreign_key_check')->fetch(PDO::FETCH_ASSOC) !== false) {
+            throw new RuntimeException('SQLiteファイルまたは参照関係の整合性に問題があります。');
         }
         $tables = $verify->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(PDO::FETCH_COLUMN);
         foreach (['administrators','rooms','users','comments','form_versions','schema_migrations'] as $required) {
