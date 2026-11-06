@@ -8,6 +8,8 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/src/Database.php';
 require dirname(__DIR__) . '/src/Migrator.php';
 require dirname(__DIR__) . '/src/FormDefinition.php';
+require dirname(__DIR__) . '/src/ChatService.php';
+require dirname(__DIR__) . '/src/WebRoutes.php';
 
 use PostComment\Database;
 use PostComment\Migrator;
@@ -132,6 +134,10 @@ if (!$installed) {
 
 if ($pending) {
     page('更新が必要です', '<p>DBスキーマの更新が必要です。データをバックアップし、対応する更新手順を確認してください。通常アクセスでは自動変更しません。</p>', 503);
+}
+
+if (\PostComment\WebRoutes::handle($db, $route, $method)) {
+    exit;
 }
 
 if ($route === 'logout') {
