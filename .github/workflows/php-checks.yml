@@ -36,6 +36,8 @@ jobs:
           (cd "$package_root/site" && zip -q -r "$package_root/portable-test.zip" post-comment-private public)
           unzip -t "$package_root/portable-test.zip" >/dev/null
           rm -rf "$package_root"
+      - name: Parallel SQLite writes through PHP service
+        run: python3 tests/concurrent.py
       - name: HTTP integration test (development server)
         run: |
           php -r '$c=require "config.example.php";$c["session"]["secure_cookie"]=false;$c["installation"]["setup_key"]=str_repeat("a",64);file_put_contents("config.php","<?php return ".var_export($c,true).";");'
