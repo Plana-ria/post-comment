@@ -256,4 +256,33 @@ try:
 finally:
     migration.unlink(missing_ok=True)
 
+# Closed anonymous rooms must not mint new session identities, but existing
+# participants can still retrieve their own previously submitted comments.
+import sqlite3
+from pathlib import Path
+app_root = Path(__file__).resolve().parents[1]
+with sqlite3.connect(app_root / "storage/database.sqlite") as connection:
+    anon_room_id = connection.execute(
+        "SELECT id FROM rooms WHERE slug=?", ("anonymous-room",)
+    ).fetchone()[0]
+settings = request(admin, "route=room-settings&room_id="+anon_room_id)
+request(admin, "route=room-settings",{
+    "csrf":token(settings),"room_id":anon_room_id,
+    "name":"HTTP smoke anonymous-room","status":"closed",
+})
+with sqlite3.connect(app_root / "storage/database.sqlite") as connection:
+    before = connection.execute(
+        "SELECT COUNT(*) FROM anonymous_sessions WHERE room_id=?", (anon_room_id,)
+    ).fetchone()[0]
+closed = request(client(), "route=room&slug=anonymous-room")
+must("投稿受付は終了",closed)
+with sqlite3.connect(app_root / "storage/database.sqlite") as connection:
+    after = connection.execute(
+        "SELECT COUNT(*) FROM anonymous_sessions WHERE room_id=?", (anon_room_id,)
+    ).fetchone()[0]
+if before != after:
+    raise AssertionError("Viewing a closed room minted a new anonymous identity")
+if "Anonymous post" not in request(guest,"route=own-csv&slug=anonymous-room"):
+    raise AssertionError("Previously submitted anonymous data became inaccessible")
+
 print("HTTP integration tests passed")
