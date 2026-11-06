@@ -29,7 +29,7 @@ jobs:
           mkdir -p "$package_root/site/post-comment-private" "$package_root/site/public"
           cp -R src database "$package_root/site/post-comment-private/"
           cp -R public/. "$package_root/site/public/"
-          PUBLIC_PATH="$package_root/site/public" php -r '\$_SERVER["DOCUMENT_ROOT"]=getenv("PUBLIC_PATH");require getenv("PUBLIC_PATH")."/bootstrap.php";\$found=postCommentRoot();\$expected=realpath(dirname(getenv("PUBLIC_PATH"))."/post-comment-private");if(\$found!==\$expected){fwrite(STDERR,"Private root discovery failed\\n");exit(1);}'
+          PUBLIC_PATH="$package_root/site/public" php -r '$_SERVER["DOCUMENT_ROOT"]=getenv("PUBLIC_PATH");require getenv("PUBLIC_PATH")."/bootstrap.php";$found=postCommentRoot();$expected=realpath(dirname(getenv("PUBLIC_PATH"))."/post-comment-private");if($found!==$expected){fwrite(STDERR,"Private root discovery failed\\n");exit(1);}'
           test ! -e "$package_root/site/public/config.php"
           test ! -e "$package_root/site/public/storage"
           test ! -e "$package_root/site/public/database"
