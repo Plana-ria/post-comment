@@ -5,12 +5,14 @@ require dirname(__DIR__) . '/src/Migrator.php';
 require dirname(__DIR__) . '/src/FormDefinition.php';
 require dirname(__DIR__) . '/src/ChatService.php';
 require dirname(__DIR__) . '/src/RoomForms.php';
+require dirname(__DIR__) . '/src/AuthThrottle.php';
 
 use PostComment\Database;
 use PostComment\Migrator;
 use PostComment\FormDefinition;
 use PostComment\ChatService;
 use PostComment\RoomForms;
+use PostComment\AuthThrottle;
 
 $dir = sys_get_temp_dir() . '/post-comment-test-' . bin2hex(random_bytes(6));
 if (!mkdir($dir, 0700) && !is_dir($dir)) {
@@ -24,7 +26,7 @@ try {
         throw new RuntimeException('Initial migration unexpectedly absent');
     }
     $applied = Migrator::migrate($db, $folder);
-    if ($applied !== ['001_initial']) {
+    if ($applied !== ['001_initial', '002_auth_throttling']) {
         throw new RuntimeException('Migration failed');
     }
     if (Migrator::pending($db, $folder)) {
@@ -135,6 +137,15 @@ try {
         ]]);
         throw new RuntimeException('Form missing required body accepted');
     } catch (InvalidArgumentException $e) {}
+    $limiter = new AuthThrottle($db);
+    for ($i=0;$i<6;$i++) $limiter->failure('participant','test-account',6,900);
+    if ($limiter->allow('participant','test-account')) {
+        throw new RuntimeException('Rate limit did not block repeated failures');
+    }
+    $limiter->success('participant','test-account');
+    if (!$limiter->allow('participant','test-account')) {
+        throw new RuntimeException('Rate limit was not cleared on success');
+    }
     echo "Smoke tests passed\n";
 } finally {
     $db = null;
