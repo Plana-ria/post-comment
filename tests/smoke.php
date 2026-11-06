@@ -78,6 +78,16 @@ try {
         || FormDefinition::defaults()['fields'][4]['placeholder'] !== 'コメントを入力してください / Enter your comments') {
         throw new RuntimeException('Default form does not preserve legacy instructions');
     }
+    foreach (['csrf','slug','form_version','room_id'] as $reserved) {
+        $reservedForm=FormDefinition::defaults();
+        $reservedForm['fields'][4]['key']=$reserved;
+        try {
+            FormDefinition::validate($reservedForm);
+            throw new RuntimeException('Reserved form key unexpectedly accepted: '.$reserved);
+        } catch (InvalidArgumentException $e) {
+            // Must reject user-defined fields that shadow router data.
+        }
+    }
     $bad = FormDefinition::defaults();
     $bad['fields'][4]['required'] = false;
     try {

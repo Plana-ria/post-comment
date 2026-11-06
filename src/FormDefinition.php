@@ -54,6 +54,15 @@ final class FormDefinition
             if (!is_string($key) || !preg_match('/^[a-z][a-z0-9_]{0,49}$/', $key) || isset($seen[$key])) {
                 throw new InvalidArgumentException('Invalid or duplicate field key.');
             }
+            // These keys are controlled by the HTTP router and must not be
+            // shadowed by participant-controlled form fields.
+            if (in_array($key, [
+                'csrf','slug','route','form_version','action','room_id',
+                'user_id','admin_id','login_id','login_code',
+                'setup_key','secret','encoding'
+            ], true)) {
+                throw new InvalidArgumentException('Reserved form field key.');
+            }
             $seen[$key] = true;
             if (!in_array($field['type'] ?? '', ['text', 'textarea', 'email', 'select', 'radio', 'checkbox'], true)) {
                 throw new InvalidArgumentException('Unsupported field type.');
