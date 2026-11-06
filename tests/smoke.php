@@ -83,6 +83,21 @@ try {
         throw new RuntimeException('Admin room export failed');
     }
 
+    $roomAdminId = ChatService::id();
+    $db->prepare("INSERT INTO administrators(id,login_id,secret_hash,role) VALUES(?,'manager','test-only','room')")->execute([$roomAdminId]);
+    if ($service->isManager($roomAdminId,$authenticatedRoom,false)) {
+        throw new RuntimeException('Unassigned manager unexpectedly authorized');
+    }
+    $db->prepare("INSERT INTO admin_room_roles(admin_id,room_id,role) VALUES(?,?,'manager')")
+        ->execute([$roomAdminId,$authenticatedRoom]);
+    if (!$service->isManager($roomAdminId,$authenticatedRoom,false)
+        || $service->isManager($roomAdminId,$anonymousRoom,false)) {
+        throw new RuntimeException('Manager room isolation failed');
+    }
+    if (count($service->roomsForAdmin($roomAdminId,false)) !== 1) {
+        throw new RuntimeException('Room list exposes unauthorized room');
+    }
+
     $forms = new RoomForms($db);
     $original = $service->form($room);
     $previousVersion = $room['active_form_version_id'];
