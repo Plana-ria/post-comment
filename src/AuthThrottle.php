@@ -40,6 +40,9 @@ final class AuthThrottle
         $this->db->prepare('UPDATE auth_attempts SET blocked_until=? WHERE scope=? AND identity_hash=?
             AND attempts >= ? AND blocked_until < ?')
             ->execute([$now+$period,$scope,$hash,$max,$now]);
+        // Shared hosting has no required cron scheduler. Opportunistically
+        // remove expired attempts to prevent unbounded SQLite table growth.
+        if (random_int(1,128) === 1) $this->prune();
     }
 
     public function success(string $scope, string $identity): void
