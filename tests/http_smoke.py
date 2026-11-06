@@ -76,14 +76,13 @@ if not user_id or not user_code:
     raise AssertionError("Random login code not shown exactly on registration")
 form = request(participant, "route=room&slug=browser-room")
 must("コメント", form)
-request(participant, "route=submit", {
+sent = request(participant, "route=submit", {
     "csrf": token(form), "slug": "browser-room",
     "form_version":re.search(r'name="form_version" value="([a-f0-9]{32})"',form).group(1),
     "last_name":"TestSurname","first_name":"TestGiven",
     "affiliation":"TestAffiliation", "email":"test@example.com",
     "comment":"The test question",
 })
-sent = request(participant, "route=room&slug=browser-room")
 must("コメントを送信しました", sent)
 must("The test question", sent)
 again = request(participant, "route=room&slug=browser-room")
