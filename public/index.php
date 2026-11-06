@@ -240,8 +240,9 @@ if ($route === 'login') {
     if ($method === 'POST') {
         checkCsrf();
         $throttle = $pending ? null : new \PostComment\AuthThrottle($db);
-        $identity = strtolower(trim((string)($_POST['login_id'] ?? ''))) . '|' . (string)($_SERVER['REMOTE_ADDR'] ?? '');
-        if ($throttle && !$throttle->allow('admin', $identity)) {
+        $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+        $identity = strtolower(trim((string)($_POST['login_id'] ?? ''))) . '|' . $ip;
+        if ($throttle && (!$throttle->allow('admin', $identity) || !$throttle->allow('admin_ip',$ip))) {
             page('ログイン制限中', '<p>しばらくしてからやり直してください。</p>', 429);
         }
         $stmt = $db->prepare($pending
@@ -250,13 +251,16 @@ if ($route === 'login') {
         $stmt->execute([(string) ($_POST['login_id'] ?? '')]);
         $admin = $stmt->fetch();
         if ($admin && password_verify((string) ($_POST['secret'] ?? ''), $admin['secret_hash'])) {
-            if ($throttle) $throttle->success('admin', $identity);
+            if ($throttle) $throttle->success('admin', $identity); // Keep IP-wide budget across identities.
             session_regenerate_id(true);
             $_SESSION['admin_id'] = $admin['id'];
             $_SESSION['admin_auth_version'] = (int)($admin['auth_version'] ?? 1);
             redirect('home');
         }
-        if ($throttle) $throttle->failure('admin', $identity);
+        if ($throttle) {
+            $throttle->failure('admin', $identity);
+            $throttle->failure('admin_ip',$ip,30,900);
+        }
         page('ログイン失敗', '<p>認証情報を確認してください。</p><p><a href="?route=login">戻る</a></p>', 401);
     }
     page('管理者ログイン', '<form method="post" action="?route=login">'
