@@ -42,7 +42,7 @@ $config=require $configFile;
 if (!is_array($config)) failRestore('設定ファイルが不正です。',503);
 if (!extension_loaded('pdo_sqlite')) failRestore('PDO_SQLITEが必要です。',503);
 $secure=(bool)($config['session']['secure_cookie']??true);
-if ($secure && (($_SERVER['HTTPS']??'')!=='on')) failRestore('HTTPSでアクセスしてください。',403);
+if ($secure && (!postCommentHttps())) failRestore('HTTPSでアクセスしてください。',403);
 session_name($config['session']['name']??'post_comment_session');
 $cookiePath=(string)($config['url']['base_path']??'');
 $cookiePath=$cookiePath===''?'/':rtrim($cookiePath,'/').'/';
