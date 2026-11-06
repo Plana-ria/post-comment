@@ -146,6 +146,8 @@ final class WebRoutes
                             $body.='<option value="'.html((string)$option).'">'.html((string)$option).'</option>';
                         }
                         $body.='</select>';
+                    } elseif ($field['type'] === 'checkbox') {
+                        $body.='<input type="checkbox" name="'.html($key).'" value="1"'.$required.'>';
                     } else {
                         $type = $field['type']==='email'?'email':'text';
                         $body.='<input type="'.$type.'" name="'.html($key).'"'.$required.' maxlength="1000">';
