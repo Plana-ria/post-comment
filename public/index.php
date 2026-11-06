@@ -13,6 +13,8 @@ require dirname(__DIR__) . '/src/WebRoutes.php';
 require dirname(__DIR__) . '/src/RoomForms.php';
 require dirname(__DIR__) . '/src/ManagementRoutes.php';
 require dirname(__DIR__) . '/src/AuthThrottle.php';
+require dirname(__DIR__) . '/src/BackupService.php';
+require dirname(__DIR__) . '/src/OperationsRoutes.php';
 
 use PostComment\Database;
 use PostComment\Migrator;
@@ -95,7 +97,7 @@ if ($installed && $pending && $route !== 'login') {
     $stmt->execute([(string)($_SESSION['admin_id'] ?? '')]);
     $authorized = (bool)$stmt->fetchColumn();
     if ($route !== 'db-upgrade' || !$authorized) {
-        page('データベース更新が必要です', '<p>システム管理者でログインしてから更新してください。</p><p><a href="?route=login">管理者ログイン</a></p>', 503);
+        page('データベース更新が必要です', '<p>システム管理者でログインして更新してください。</p><p><a href="?route=login">管理者ログイン</a> / <a href="?route=db-upgrade">DB更新画面</a></p>', 503);
     }
     if ($method === 'POST') {
         checkCsrf();
@@ -179,6 +181,20 @@ if ($pending && $installed && $route !== 'login') {
     page('データベース更新が必要です', '<p>システム管理者でログインして更新してください。</p>',503);
 }
 
+// Resetting an administrator code invalidates previously authenticated browsers.
+if (!$pending && !empty($_SESSION['admin_id'])) {
+    $authStmt=$db->prepare('SELECT auth_version FROM administrators WHERE id=? AND disabled_at IS NULL');
+    $authStmt->execute([$_SESSION['admin_id']]);
+    $currentVersion=$authStmt->fetchColumn();
+    if ($currentVersion===false || (int)$currentVersion !== (int)($_SESSION['admin_auth_version']??-1)) {
+        unset($_SESSION['admin_id'],$_SESSION['admin_auth_version']);
+        session_regenerate_id(true);
+    }
+}
+
+if (\PostComment\OperationsRoutes::handle($db,$config,$route,$method)) {
+    exit;
+}
 if (\PostComment\ManagementRoutes::handle($db, $route, $method)) {
     exit;
 }
@@ -197,21 +213,24 @@ if ($route === 'logout') {
 if ($route === 'login') {
     if ($method === 'POST') {
         checkCsrf();
-        $throttle = new \PostComment\AuthThrottle($db);
+        $throttle = $pending ? null : new \PostComment\AuthThrottle($db);
         $identity = strtolower(trim((string)($_POST['login_id'] ?? ''))) . '|' . (string)($_SERVER['REMOTE_ADDR'] ?? '');
-        if (!$throttle->allow('admin', $identity)) {
+        if ($throttle && !$throttle->allow('admin', $identity)) {
             page('ログイン制限中', '<p>しばらくしてからやり直してください。</p>', 429);
         }
-        $stmt = $db->prepare("SELECT id, secret_hash FROM administrators WHERE login_id = ? AND disabled_at IS NULL");
+        $stmt = $db->prepare($pending
+            ? "SELECT id, secret_hash FROM administrators WHERE login_id = ? AND disabled_at IS NULL"
+            : "SELECT id, secret_hash, auth_version FROM administrators WHERE login_id = ? AND disabled_at IS NULL");
         $stmt->execute([(string) ($_POST['login_id'] ?? '')]);
         $admin = $stmt->fetch();
         if ($admin && password_verify((string) ($_POST['secret'] ?? ''), $admin['secret_hash'])) {
-            $throttle->success('admin', $identity);
+            if ($throttle) $throttle->success('admin', $identity);
             session_regenerate_id(true);
             $_SESSION['admin_id'] = $admin['id'];
+            $_SESSION['admin_auth_version'] = (int)($admin['auth_version'] ?? 1);
             redirect('home');
         }
-        $throttle->failure('admin', $identity);
+        if ($throttle) $throttle->failure('admin', $identity);
         page('ログイン失敗', '<p>認証情報を確認してください。</p><p><a href="?route=login">戻る</a></p>', 401);
     }
     page('管理者ログイン', '<form method="post" action="?route=login">'

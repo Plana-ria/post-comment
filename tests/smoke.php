@@ -6,6 +6,7 @@ require dirname(__DIR__) . '/src/FormDefinition.php';
 require dirname(__DIR__) . '/src/ChatService.php';
 require dirname(__DIR__) . '/src/RoomForms.php';
 require dirname(__DIR__) . '/src/AuthThrottle.php';
+require dirname(__DIR__) . '/src/BackupService.php';
 
 use PostComment\Database;
 use PostComment\Migrator;
@@ -13,6 +14,7 @@ use PostComment\FormDefinition;
 use PostComment\ChatService;
 use PostComment\RoomForms;
 use PostComment\AuthThrottle;
+use PostComment\BackupService;
 
 $dir = sys_get_temp_dir() . '/post-comment-test-' . bin2hex(random_bytes(6));
 if (!mkdir($dir, 0700) && !is_dir($dir)) {
@@ -26,7 +28,7 @@ try {
         throw new RuntimeException('Initial migration unexpectedly absent');
     }
     $applied = Migrator::migrate($db, $folder);
-    if ($applied !== ['001_initial', '002_auth_throttling']) {
+    if ($applied !== ['001_initial', '002_auth_throttling', '003_admin_auth_revision']) {
         throw new RuntimeException('Migration failed');
     }
     if (Migrator::pending($db, $folder)) {
@@ -146,6 +148,19 @@ try {
     if (!$limiter->allow('participant','test-account')) {
         throw new RuntimeException('Rate limit was not cleared on success');
     }
+    $adminVersion=(int)$db->query("SELECT auth_version FROM administrators WHERE login_id='admin'")->fetchColumn();
+    if ($adminVersion !== 1) throw new RuntimeException('Administrator auth revision migration failed');
+    $backupDir=$dir.'/backups';
+    if (!mkdir($backupDir,0700)) throw new RuntimeException('Could not create backup directory');
+    $backup=(new BackupService($db))->create($backupDir);
+    BackupService::validateImport($backup);
+    $copy=new PDO('sqlite:'.$backup,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+    if ($copy->query('SELECT COUNT(*) FROM comments')->fetchColumn() !== $db->query('SELECT COUNT(*) FROM comments')->fetchColumn()) {
+        throw new RuntimeException('Backup does not contain current comments');
+    }
+    $copy=null;
+    unlink($backup);
+    rmdir($backupDir);
     echo "Smoke tests passed\n";
 } finally {
     $db = null;
