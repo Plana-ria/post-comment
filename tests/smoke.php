@@ -12,6 +12,7 @@ require dirname(__DIR__) . '/src/FormDefinition.php';
 require dirname(__DIR__) . '/src/ChatService.php';
 require dirname(__DIR__) . '/src/CsvExport.php';
 require dirname(__DIR__) . '/src/RoomForms.php';
+require dirname(__DIR__) . '/src/AdministratorService.php';
 require dirname(__DIR__) . '/src/AuthThrottle.php';
 require dirname(__DIR__) . '/src/BackupService.php';
 require dirname(__DIR__) . '/src/RestoreService.php';
@@ -25,6 +26,7 @@ use PostComment\FormDefinition;
 use PostComment\ChatService;
 use PostComment\CsvExport;
 use PostComment\RoomForms;
+use PostComment\AdministratorService;
 use PostComment\AuthThrottle;
 use PostComment\BackupService;
 use PostComment\RestoreService;
@@ -127,6 +129,23 @@ try {
         throw new RuntimeException('Room list exposes unauthorized room');
     }
 
+    $adminService = new AdministratorService($db);
+    try {
+        $adminService->change($adminId,$adminId,'disable');
+        throw new RuntimeException('Self-disable unexpectedly succeeded');
+    } catch (RuntimeException $e) {
+        if (str_contains($e->getMessage(),'unexpectedly succeeded')) throw $e;
+    }
+    $adminService->change($adminId,$roomAdminId,'disable');
+    $disabled=$db->prepare('SELECT disabled_at FROM administrators WHERE id=?');
+    $disabled->execute([$roomAdminId]);
+    if (!$disabled->fetchColumn()) throw new RuntimeException('Admin disable failed');
+    $adminService->change($adminId,$roomAdminId,'enable');
+    $adminService->change($adminId,$roomAdminId,'make_system');
+    $promoted=$db->prepare('SELECT role FROM administrators WHERE id=?');
+    $promoted->execute([$roomAdminId]);
+    if ($promoted->fetchColumn() !== 'system') throw new RuntimeException('Role promotion failed');
+    $adminService->change($adminId,$roomAdminId,'make_room');
     $forms = new RoomForms($db);
     $original = $service->form($room);
     $previousVersion = $room['active_form_version_id'];

@@ -11,7 +11,7 @@ final class ManagementRoutes
 {
     public static function handle(PDO $db, string $route, string $method): bool
     {
-        if (!in_array($route, ['form-edit','room-settings','admins','admin-create','admin-assign','admin-unassign'], true)) return false;
+        if (!in_array($route, ['form-edit','room-settings','admins','admin-create','admin-assign','admin-unassign','admin-change'], true)) return false;
         $admin = self::admin($db);
         if (!$admin) page('ログインが必要です', '<p><a href="?route=login">管理者ログイン</a></p>', 401);
         $system = $admin['role'] === 'system';
@@ -108,6 +108,23 @@ final class ManagementRoutes
             page('フォーム編集：'.$room['name'],$body);
         }
         if (!$system) page('権限がありません','',403);
+        if ($route === 'admin-change') {
+            if ($method !== 'POST') page('操作できません','',405);
+            checkCsrf();
+            try {
+                (new AdministratorService($db))->change(
+                    $admin['id'],
+                    (string)($_POST['admin_id']??''),
+                    (string)($_POST['operation']??'')
+                );
+                header('Location: ?route=admins',true,303);
+                exit;
+            } catch (Throwable $e) {
+                error_log('Administrator operation rejected: '.$e->getMessage());
+                page('操作できませんでした',
+                    '<p>'.html($e->getMessage()).'</p><p><a href="?route=admins">管理者一覧へ</a></p>',400);
+            }
+        }
         if ($route === 'admin-create') {
             if ($method !== 'POST') page('操作できません','',405);
             checkCsrf();
@@ -144,12 +161,26 @@ final class ManagementRoutes
             $db->prepare("INSERT OR IGNORE INTO admin_room_roles(admin_id,room_id,role) VALUES(?,?,'manager')")->execute([$target,$room]);
             header('Location: ?route=admins',true,303);exit;
         }
-        $admins=$db->query('SELECT id,login_id,role FROM administrators WHERE disabled_at IS NULL ORDER BY login_id')->fetchAll();
+        $admins=$db->query('SELECT id,login_id,role,disabled_at FROM administrators ORDER BY login_id')->fetchAll();
         $rooms=$service->roomsForAdmin($admin['id'],true);
         $body='<h2>管理者一覧</h2><ul>';
         foreach ($admins as $a) {
-            $body.='<li>'.html($a['login_id']).'（'.html($a['role']).'）';
-            if ($a['role']==='room') {
+            $body.='<li>'.html($a['login_id']).'（'.html($a['role']).' / '.($a['disabled_at']===null?'有効':'停止中').'）';
+            if ($a['id'] !== $admin['id']) {
+                $operation = $a['disabled_at']===null ? 'disable' : 'enable';
+                $body.='<form method="post" action="?route=admin-change">'.self::csrf()
+                    .'<input type="hidden" name="admin_id" value="'.html($a['id']).'">'
+                    .'<input type="hidden" name="operation" value="'.$operation.'">'
+                    .'<button>'.($operation==='disable'?'アカウント停止':'再有効化').'</button></form>';
+            }
+            if ($a['disabled_at']===null && $a['id'] !== $admin['id']) {
+                $operation = $a['role']==='system' ? 'make_room':'make_system';
+                $body.='<form method="post" action="?route=admin-change">'.self::csrf()
+                    .'<input type="hidden" name="admin_id" value="'.html($a['id']).'">'
+                    .'<input type="hidden" name="operation" value="'.$operation.'">'
+                    .'<button>'.($operation==='make_room'?'ルーム管理者に変更':'システム管理者に変更').'</button></form>';
+            }
+            if ($a['role']==='room' && $a['disabled_at']===null) {
                 $body.='<form method="post" action="?route=admin-assign">'.self::csrf()
                     .'<input type="hidden" name="admin_id" value="'.html($a['id']).'"><select name="room_id">';
                 foreach ($rooms as $room) $body.='<option value="'.html($room['id']).'">'.html($room['name']).'</option>';

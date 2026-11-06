@@ -23,6 +23,7 @@ require $appRoot . '/src/WebRoutes.php';
 require $appRoot . '/src/CsvExport.php';
 require $appRoot . '/src/RoomForms.php';
 require $appRoot . '/src/ManagementRoutes.php';
+require $appRoot . '/src/AdministratorService.php';
 require $appRoot . '/src/AuthThrottle.php';
 require $appRoot . '/src/BackupService.php';
 require $appRoot . '/src/OperationsRoutes.php';
