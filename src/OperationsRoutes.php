@@ -11,7 +11,7 @@ final class OperationsRoutes
 {
     public static function handle(PDO $db, array $config, string $route, string $method): bool
     {
-        if (!in_array($route,['operations','download-backup','admin-reset'],true)) return false;
+        if (!in_array($route,['operations','updates','download-backup','admin-reset'],true)) return false;
         $stmt = $db->prepare("SELECT id,login_id,role FROM administrators WHERE id=? AND disabled_at IS NULL");
         $stmt->execute([(string)($_SESSION['admin_id']??'')]);
         $admin = $stmt->fetch();
@@ -19,6 +19,30 @@ final class OperationsRoutes
             page('権限がありません','<p>システム管理者の認証が必要です。</p>',403);
         }
 
+        if ($route === 'updates') {
+            if ($method !== 'GET') page('操作できません','',405);
+            $current=ReleaseChecker::currentVersion(dirname(__DIR__));
+            $body='<p>現在のバージョン：<strong>'.html($current).'</strong></p>';
+            try {
+                $latest=ReleaseChecker::latest();
+                if (!$latest) {
+                    $body.='<p>対応する正式リリースが公開されていません。</p>';
+                } else {
+                    $body.='<p>GitHubの最新安定版：<strong>'.html($latest['tag']).'</strong></p>';
+                    if (version_compare($latest['version'],$current,'>')) {
+                        $body.='<p>新しいバージョンがあります。</p>';
+                    } else $body.='<p>現在のバージョン以上の更新はありません。</p>';
+                    $body.='<p>配布ZIP：<a href="'.html($latest['url']).'" rel="noopener noreferrer">GitHub Releasesから取得</a></p>';
+                    $body.='<p>SHA-256：<code>'.html(substr($latest['digest'],7)).'</code></p>';
+                }
+            } catch (Throwable $e) {
+                error_log('Release check failed: '.$e->getMessage());
+                $body.='<p>最新情報を取得できませんでした。GitHubの接続とサーバー設定を確認してください。</p>';
+            }
+            $body.='<p>現段階では最新版の自動適用は未実装です。安全な更新機構が完成するまでは手動での配布・更新となります。</p>'
+                .'<p><a href="?route=operations">システム保守に戻る</a></p>';
+            page('GitHub更新確認',$body);
+        }
         if ($route === 'download-backup') {
             if ($method !== 'POST') page('操作できません','',405);
             checkCsrf();
@@ -68,7 +92,7 @@ final class OperationsRoutes
         }
 
         $admins=$db->query('SELECT id,login_id,role FROM administrators WHERE disabled_at IS NULL ORDER BY login_id')->fetchAll();
-        $body='<h2>バックアップを取得</h2><p>SQLiteの一貫したコピーをダウンロードします。'
+        $body='<p><a href="?route=updates">GitHubの最新版を確認する</a></p><h2>バックアップを取得</h2><p>SQLiteの一貫したコピーをダウンロードします。'
             .'投稿・認証情報を含むため、取得したファイルは安全な場所に保管してください。</p>'
             .'<form method="post" action="?route=download-backup">'
             .'<input type="hidden" name="csrf" value="'.html(csrfToken()).'"><button>DBをバックアップ</button></form>'

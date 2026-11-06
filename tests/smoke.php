@@ -16,6 +16,7 @@ require dirname(__DIR__) . '/src/BackupService.php';
 require dirname(__DIR__) . '/src/RestoreService.php';
 require dirname(__DIR__) . '/src/LegacyCsvImporter.php';
 require dirname(__DIR__) . '/src/EmergencyRecovery.php';
+require dirname(__DIR__) . '/src/ReleaseChecker.php';
 
 use PostComment\Database;
 use PostComment\Migrator;
@@ -27,6 +28,7 @@ use PostComment\BackupService;
 use PostComment\RestoreService;
 use PostComment\LegacyCsvImporter;
 use PostComment\EmergencyRecovery;
+use PostComment\ReleaseChecker;
 
 $dir = sys_get_temp_dir() . '/post-comment-test-' . bin2hex(random_bytes(6));
 if (!mkdir($dir, 0700) && !is_dir($dir)) {
@@ -227,6 +229,21 @@ try {
     unlink($backup);
     unlink($dir.'/maintenance.lock');
     rmdir($backupDir);
+    $fakeRelease=[
+        'tag_name'=>'v1.2.3','draft'=>false,'prerelease'=>false,
+        'assets'=>[[
+            'name'=>'post-comment-portable.zip',
+            'browser_download_url'=>'https://github.com/Plana-ria/post-comment/releases/download/v1.2.3/post-comment-portable.zip',
+            'digest'=>'sha256:'.str_repeat('a',64),
+        ]],
+    ];
+    if ((ReleaseChecker::fromApi($fakeRelease)['version']??null)!=='1.2.3') {
+        throw new RuntimeException('Release parsing failed');
+    }
+    $fakeRelease['assets'][0]['browser_download_url']='https://attacker.invalid/release.zip';
+    if (ReleaseChecker::fromApi($fakeRelease)!==null) {
+        throw new RuntimeException('Untrusted release URL accepted');
+    }
     echo "Smoke tests passed\n";
 } finally {
     $db = null;
