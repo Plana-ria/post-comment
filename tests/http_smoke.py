@@ -123,6 +123,42 @@ request(other,"route=user-login",{
 second=request(other,"route=room&slug=browser-room-2")
 must("コメント",second)
 
+# Per-room administrators must not access unrelated rooms, exports or streams.
+admin_page=request(admin,"route=admins")
+request(admin,"route=admin-create",{
+    "csrf":token(admin_page),"login_id":"roommanager",
+    "secret":"room-manager-secret-long","role":"room",
+})
+admin_page=request(admin,"route=admins")
+match=re.search(r'name="admin_id" value="([a-f0-9]{32})"',admin_page)
+if not match:
+    raise AssertionError("New administrator was not listed for assignment")
+room_manager_id=match.group(1)
+request(admin,"route=admin-assign",{
+    "csrf":token(admin_page),"admin_id":room_manager_id,
+    "room_id":room_id,
+})
+all_rooms=request(admin,"route=rooms")
+second_room_ids=re.findall(r'\?route=room-admin&amp;room_id=([a-f0-9]{32})',all_rooms)
+forbidden_id=next((x for x in second_room_ids if x!=room_id),None)
+if forbidden_id is None:
+    raise AssertionError("Another room was not created")
+manager=client()
+login_page=request(manager,"route=login")
+request(manager,"route=login",{
+    "csrf":token(login_page),"login_id":"roommanager",
+    "secret":"room-manager-secret-long",
+})
+manager_page=request(manager,"route=home")
+must("担当ルーム一覧",manager_page)
+if "システム保守" in manager_page:
+    raise AssertionError("Room manager can see system administration")
+must("受信画面",request(manager,"route=room-admin&room_id="+room_id))
+request(manager,"route=room-admin&room_id="+forbidden_id,expect=403)
+request(manager,"route=admin-csv&room_id="+forbidden_id,expect=403)
+request(manager,"route=admin-updates&room_id="+forbidden_id+"&after=0",expect=403)
+request(manager,"route=operations",expect=403)
+
 # Anonymous sessions have scoped downloads without any login.
 create_room("anonymous-room","none")
 guest=client()
