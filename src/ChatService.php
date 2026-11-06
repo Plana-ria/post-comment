@@ -278,6 +278,17 @@ final class ChatService
             $check->execute([$formVersionId,$room['id']]);
             if (!$check->fetchColumn()) throw new RuntimeException('Form version is not part of this room.');
             if ($userId !== null) {
+                $validUser=$this->db->prepare('SELECT 1 FROM users WHERE id=? AND disabled_at IS NULL');
+                $validUser->execute([$userId]);
+                if (!$validUser->fetchColumn()) throw new RuntimeException('Inactive participant.');
+            }
+            if ($anonymousId !== null) {
+                $validAnon=$this->db->prepare('SELECT 1 FROM anonymous_sessions
+                    WHERE id=? AND room_id=? AND revoked_at IS NULL AND expires_at>?');
+                $validAnon->execute([$anonymousId,$room['id'],gmdate('Y-m-d\\TH:i:s\\Z')]);
+                if (!$validAnon->fetchColumn()) throw new RuntimeException('Anonymous session is expired or belongs to another room.');
+            }
+            if ($userId !== null) {
                 $this->db->prepare('INSERT OR IGNORE INTO room_participants(room_id,user_id,first_joined_at) VALUES(?,?,?)')
                     ->execute([$room['id'],$userId,gmdate('Y-m-d\TH:i:s\Z')]);
             }
