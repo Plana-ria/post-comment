@@ -253,6 +253,22 @@ if "The test question" not in after_reset:
 create_room("anonymous-room","none")
 guest=client()
 anonymous=request(guest,"route=room&slug=anonymous-room")
+# A valid CSRF token alone is not an anonymous room identity. A forged
+# submission must not mint an anonymous token or create a comment.
+cross=client()
+cross_login=request(cross,"route=room&slug=browser-room")
+with sqlite3.connect(app_root / "storage/database.sqlite") as connection:
+    before_anon=connection.execute("SELECT COUNT(*) FROM anonymous_sessions").fetchone()[0]
+request(cross,"route=submit",{
+    "csrf":token(cross_login),"slug":"anonymous-room",
+    "form_version":re.search(r'name="form_version" value="([a-f0-9]{32})"',anonymous).group(1),
+    "last_name":"Rejected","first_name":"Rejected","affiliation":"Rejected",
+    "email":"","comment":"No anonymous cookie",
+},expect=401)
+with sqlite3.connect(app_root / "storage/database.sqlite") as connection:
+    after_anon=connection.execute("SELECT COUNT(*) FROM anonymous_sessions").fetchone()[0]
+if before_anon != after_anon:
+    raise AssertionError("Anonymous POST created identity without an existing cookie")
 request(guest,"route=submit",{
     "csrf":token(anonymous),"slug":"anonymous-room",
     "form_version":re.search(r'name="form_version" value="([a-f0-9]{32})"',anonymous).group(1),
