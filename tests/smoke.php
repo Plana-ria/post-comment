@@ -120,6 +120,14 @@ try {
     if (count($service->ownComments($anonymousRoom, null, $anon['id'])) !== 1) {
         throw new RuntimeException('Anonymous export failed');
     }
+    $stream=fopen('php://temp','w+b');
+    CsvExport::admin($db,$anonymousRoom,$stream);
+    rewind($stream);
+    $guestCsv=stream_get_contents($stream);
+    fclose($stream);
+    if (!str_contains($guestCsv,'messenge')) {
+        throw new RuntimeException('Guest admin CSV missed comment heading');
+    }
     if (count($service->adminComments($anonymousRoom, 0, null)) !== 1) {
         throw new RuntimeException('Admin room export failed');
     }
@@ -202,7 +210,7 @@ try {
     rewind($stream);
     $csvBytes = stream_get_contents($stream);
     fclose($stream);
-    if ($exportCount !== 3 || !str_contains($csvBytes,'category')
+    if ($exportCount !== 3 || !str_starts_with($csvBytes,"\xEF\xBB\xBFtime,last_name,first_name,affiliation,mail,messenge") || !str_contains($csvBytes,'category')
         || !str_contains($csvBytes,'University')) {
         throw new RuntimeException('Full historical admin export missing fields');
     }
