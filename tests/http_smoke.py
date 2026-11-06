@@ -10,7 +10,9 @@ from urllib.parse import urlencode
 from urllib.request import build_opener, HTTPCookieProcessor, Request
 from urllib.error import HTTPError
 from http.cookiejar import CookieJar
+from pathlib import Path
 
+app_root = Path(__file__).resolve().parents[1]
 BASE = "http://127.0.0.1:18901/"
 SETUP = "a" * 64
 
