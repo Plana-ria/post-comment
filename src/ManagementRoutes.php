@@ -47,25 +47,46 @@ final class ManagementRoutes
                 page('権限がありません','',403);
             }
             $editor = new RoomForms($db);
-            $form = $service->form($room);
+            $publishedForm = $service->form($room);
+            $draft=$editor->draft($roomId);
+            $draftActive=$draft!==null && $draft['base_version']===$room['active_form_version_id'];
+            $form=$draftActive?$draft['definition']:$publishedForm;
             $error = '';
             if ($method === 'POST') {
                 checkCsrf();
                 try {
-                    $newForm = RoomForms::fromEditor($_POST);
-                    // Avoid accidental overwrites when two administrators edit simultaneously.
-                    if (!hash_equals((string)$room['active_form_version_id'], (string)($_POST['original_version']??''))) {
-                        throw new \RuntimeException('Another administrator has updated this form. Reload before saving.');
+                    $action=(string)($_POST['action']??'publish');
+                    if ($action==='discard') {
+                        $editor->discardDraft($roomId);
+                        header('Location: ?route=form-edit&room_id='.rawurlencode($roomId),true,303);
+                        exit;
                     }
-                    $version=$editor->publish($roomId,$newForm,$admin['id'],(string)($_POST['original_version']??''));
+                    if (!in_array($action,['save_draft','publish'],true)) {
+                        throw new \RuntimeException('Invalid form operation.');
+                    }
+                    $newForm=RoomForms::fromEditor($_POST);
+                    $baseVersion=(string)($_POST['original_version']??'');
+                    if (!hash_equals((string)$room['active_form_version_id'],$baseVersion)) {
+                        throw new \RuntimeException('フォームが別の管理者によって更新されました。画面を開き直してください。');
+                    }
+                    if ($action==='save_draft') {
+                        $editor->saveDraft($roomId,$newForm,$admin['id'],$baseVersion);
+                        page('フォームの下書きを保存しました',
+                            '<p>公開済みのフォームや投稿には影響しません。</p>'
+                            .'<p><a href="?route=form-edit&amp;room_id='.rawurlencode($roomId).'">下書きの編集へ戻る</a></p>');
+                    }
+                    $version=$editor->publish($roomId,$newForm,$admin['id'],$baseVersion);
                     page('フォームを公開しました','<p>バージョン '.(int)$version.' を公開しました。過去の投稿は変更されません。</p>'
                         .'<p><a href="?route=form-edit&amp;room_id='.rawurlencode($roomId).'">フォーム編集へ</a></p>'
                         .'<p><a href="?route=room&amp;slug='.rawurlencode($room['slug']).'">投稿画面を確認</a></p>');
                 } catch (Throwable $e) {
-                    $error = 'フォームを保存できませんでした：'.html($e->getMessage());
+                    $error='フォームを保存できませんでした：'.html($e->getMessage());
+                    if (isset($newForm)) $form=$newForm;
                 }
             }
-            $body = '<p>投稿項目を追加・削除・並べ替えできます。保存すると新しいフォーム版を公開します。</p>';
+            $body = '<p>投稿項目を追加・削除・並べ替えできます。下書き保存では現在の投稿フォームは変わらず、公開すると新しいフォーム版が有効になります。</p>';
+            if ($draftActive) $body.='<p>保存済みの下書きがあります（更新：'.html($draft['updated_at']).'）。</p>';
+            if ($draft!==null && !$draftActive) $body.='<p class="err">前回の下書きは古い公開版に基づくため編集に反映されません。</p>';
             if ($error !== '') $body.='<p class="err">'.$error.'</p>';
             $body.='<form id="form-editor" method="post" action="?route=form-edit">'.self::csrf()
                 .'<input type="hidden" name="room_id" value="'.html($roomId).'">'
@@ -100,8 +121,15 @@ final class ManagementRoutes
             $body.='</div><p><button type="button" id="add-field">項目を追加</button> '
                 .'<button type="button" id="preview-form">プレビュー</button></p>'
                 .'<section id="form-preview" hidden><h2>投稿フォームのプレビュー</h2><div id="preview-fields"></div></section>'
-                .'<button>このフォームを公開する</button></form>'
-                .'<script defer src="assets/form-builder.js"></script><h2>公開履歴</h2><ul>';
+                .'<button type="submit" name="action" value="save_draft">下書き保存</button> '
+                .'<button type="submit" name="action" value="publish">このフォームを公開する</button></form>'
+                .'<script defer src="assets/form-builder.js"></script>';
+            if ($draft!==null) {
+                $body.='<form method="post" action="?route=form-edit">'.self::csrf()
+                    .'<input type="hidden" name="room_id" value="'.html($roomId).'">'
+                    .'<button name="action" value="discard">下書きを破棄</button></form>';
+            }
+            $body.='<h2>公開履歴</h2><ul>';
             foreach ($editor->versions($roomId) as $version) $body.='<li>v'.(int)$version['version_no'].'：'.html($version['published_at']).'</li>';
             $body.='</ul><p>さらに項目を追加する場合は、既存の空欄を使い切った後に公開すると、新しい空欄が表示されます。</p>'
                 .'<p><a href="?route=room-admin&amp;room_id='.rawurlencode($roomId).'">受信画面へ戻る</a></p>';
