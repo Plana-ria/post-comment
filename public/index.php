@@ -141,15 +141,7 @@ if ($installed && $pending && $route !== 'login') {
             if (!is_dir($backupDir) || !is_writable($backupDir) || is_link($backupDir)) {
                 throw new RuntimeException('Backup directory is not safe');
             }
-            $target = $backupDir.'/pre-migration-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(5)).'.sqlite';
-            $q = $db->prepare('VACUUM INTO ?');
-            $q->execute([$target]);
-            if (!is_file($target) || filesize($target) === 0) throw new RuntimeException('Backup was not created');
-            $verification = new PDO('sqlite:'.$target);
-            if ($verification->query('PRAGMA integrity_check')->fetchColumn() !== 'ok') {
-                throw new RuntimeException('Backup integrity check failed');
-            }
-            $verification = null;
+            (new \PostComment\BackupService($db))->create($backupDir);
             Migrator::migrate($db,$migrations);
             redirect('home');
         } catch (Throwable $e) {
