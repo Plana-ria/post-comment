@@ -137,10 +137,16 @@ try {
     // Expired, unused identities may be cleaned, but identities referenced by
     // comments must remain for historical foreign-key integrity.
     $unused=$service->acceptAnonymous($anonymousRoom,null);
+    $service->submit($guestRoom, $service->form($guestRoom), $input, null, $anon['id']);
     $db->prepare('UPDATE anonymous_sessions SET expires_at=? WHERE id IN (?,?)')
         ->execute(['2020-01-01T00:00:00Z',$anon['id'],$unused['id']]);
-    // Referenced identity is retained once the comment is saved below.
-    $service->submit($guestRoom, $service->form($guestRoom), $input, null, $anon['id']);
+    // A referenced identity must be preserved, but never accepted for new posts.
+    try {
+        $service->submit($guestRoom,$service->form($guestRoom),$input,null,$anon['id']);
+        throw new RuntimeException('Expired anonymous identity unexpectedly accepted');
+    } catch (RuntimeException $e) {
+        if (str_contains($e->getMessage(),'unexpectedly accepted')) throw $e;
+    }
     $pruned=$service->pruneUnusedAnonymousSessions();
     $checkUnused=$db->prepare('SELECT 1 FROM anonymous_sessions WHERE id=?');
     $checkUnused->execute([$unused['id']]);
