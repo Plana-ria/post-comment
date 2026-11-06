@@ -29,7 +29,7 @@ final class LegacyRoutes
                 page('CSVを選択してください','<p><a href="?route=legacy-import&amp;room_id='.rawurlencode($roomId).'">戻る</a></p>',400);
             }
             try {
-                $result=(new LegacyCsvImporter($db))->import($roomId,(string)$file['tmp_name']);
+                $result=(new LegacyCsvImporter($db))->import($roomId,(string)$file['tmp_name'],100000,(string)($_POST['encoding']??'UTF-8'));
                 $db->prepare('INSERT INTO audit_events(actor_id,action,target_type,target_id,created_at) VALUES(?,?,?,?,?)')
                     ->execute([$admin['id'],'legacy_csv_import','room',$roomId,gmdate('Y-m-d\TH:i:s\Z')]);
                 page('インポート完了','<p>取り込んだ投稿：'.(int)$result['imported'].'件</p>'
@@ -53,6 +53,7 @@ final class LegacyRoutes
             .'<input type="hidden" name="room_id" value="'.html($roomId).'">'
             .'<label>旧管理画面から出力したCSV（最大20MB）'
             .'<input type="file" name="legacy_csv" accept=".csv,text/csv" required></label>'
+            .'<label>CSVの文字コード<select name="encoding"><option value="UTF-8">UTF-8（通常はこちら）</option><option value="CP932">Shift_JIS / Windows-31J（旧Excel形式）</option></select></label>'
             .'<button>コメント履歴を取り込む</button></form>'
             .'<p><a href="?route=room-admin&amp;room_id='.rawurlencode($roomId).'">戻る</a></p>');
     }
