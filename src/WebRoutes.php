@@ -165,6 +165,30 @@ final class WebRoutes
             if ($userId) $body.='<form method="post" action="?route=user-logout">'.self::csrf().'<button>ログアウト</button></form>';
             page($room['name'],$body);
         }
+        if ($route === 'admin-updates') {
+            self::requireAdmin($admin);
+            if ($method !== 'GET') page('操作できません','',405);
+            $roomId = (string)($_GET['room_id'] ?? '');
+            if (!$service->roomById($roomId) || !$service->isManager($admin['id'],$roomId,$isSystem)) {
+                page('権限がありません','',403);
+            }
+            $after = filter_var($_GET['after'] ?? '0', FILTER_VALIDATE_INT, ['options'=>['min_range'=>0]]);
+            if ($after === false) page('パラメータエラー','',400);
+            $rows = $service->adminComments($roomId,(int)$after,500);
+            $out = [];
+            foreach ($rows as $row) {
+                $out[] = [
+                    'id'=>(int)$row['id'],
+                    'created_at'=>$row['created_at'],
+                    'comment_text'=>$row['comment_text'],
+                    'values'=>json_decode($row['submitted_values_json'],true,512,JSON_THROW_ON_ERROR),
+                ];
+            }
+            header('Content-Type: application/json; charset=UTF-8');
+            header('Cache-Control: no-store');
+            echo json_encode(['comments'=>$out], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            exit;
+        }
         if (in_array($route,['room-admin','admin-csv','reset-user'],true)) {
             self::requireAdmin($admin);
             $roomId = (string) ($_REQUEST['room_id']??'');
@@ -201,7 +225,8 @@ final class WebRoutes
                 self::csv('room-comments.csv',array_merge(['time','comment'],$keys),$records);
             }
             $body='<p><a href="?route=admin-csv&amp;room_id='.rawurlencode($roomId).'">全件CSVを取得</a> | <a href="?route=form-edit&amp;room_id='.rawurlencode($roomId).'">投稿フォームを編集</a></p>';
-            $body.='<h2>コメント（最新500件まで）</h2>';
+            $cursor = count($comments) ? max(array_map(static fn($r)=>(int)$r['id'],$comments)) : 0;
+            $body.='<h2>コメント（最新500件まで）</h2><section data-room-updates data-room-id="'.html($roomId).'" data-cursor="'.$cursor.'">';
             foreach ($comments as $entry) {
                 $values=json_decode($entry['submitted_values_json'],true,512,JSON_THROW_ON_ERROR);
                 $body.='<article><p><small>'.html($entry['created_at']).'</small></p><p>'.nl2br(html($entry['comment_text'])).'</p>';
@@ -211,6 +236,7 @@ final class WebRoutes
                 }
                 $body.='</article><hr>';
             }
+            $body.='</section><script defer src="assets/admin-live.js"></script>';
             $body.='<h2>利用者のコード再発行</h2>';
             foreach ($service->usersInRoom($roomId) as $user) {
                 $body.='<form method="post" action="?route=reset-user">'.self::csrf()
