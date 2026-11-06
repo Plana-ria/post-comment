@@ -43,7 +43,8 @@ DocumentRootを変更できない共有レンタルサーバーでも、公開�
 
 - PHP 8.3/8.4でPHP構文チェックと`php tests/smoke.php`を実行
 - `python3 tests/http_smoke.py`：PHP組み込みサーバーを使い、初回セットアップ、ログイン、投稿・CSV、認証方式、管理者の担当ルーム制限を検証
-- 更新テスト：テスト用の署名付きZIPを適用し、コード切替・DB保持・保守フラグ解除を確認
+- 並行投稿テスト：`python3 tests/parallel_sqlite.py` で8プロセス96投稿の件数・整合性を確認
+- 更新テスト：テスト用の署名付きZIPを適用し、コード切替・DB保持・保守フラグ解除、SQL移行失敗時の復旧と危険なZIPの拒否を確認
 - [旧コードとの差分監査](docs/legacy-source-audit.md) / [旧機能対応表](docs/legacy-feature-matrix.md) / [本番受入チェックリスト](docs/release-readiness.md)
 
 CIの成功は本番環境での無条件の安全性や全機能の受入完了を意味しません。未完了の必須検証は[リリース受入確認](docs/release-readiness.md)に記録します。
