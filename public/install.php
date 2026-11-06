@@ -44,7 +44,7 @@ function escInstall(string $value): string
 }
 
 if (is_file($configFile)) installPage('セットアップ済み','<p>このアプリは既に設定されています。<a href="index.php?route=login">ログイン画面</a>を開いてください。</p>',403);
-if (($_SERVER['HTTPS']??'')!=='on') installPage('HTTPSが必要です','<p>https:// のURLで開いてください。</p>',403);
+if (!postCommentHttps()) installPage('HTTPSが必要です','<p>https:// のURLで開いてください。</p>',403);
 if (PHP_VERSION_ID < 80300 || !extension_loaded('pdo_sqlite')) {
     installPage('PHP環境が対応していません','<p>PHP 8.3以降とPDO_SQLITEが必要です。</p>',503);
 }
