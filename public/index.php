@@ -20,6 +20,7 @@ require $appRoot . '/src/Migrator.php';
 require $appRoot . '/src/FormDefinition.php';
 require $appRoot . '/src/ChatService.php';
 require $appRoot . '/src/WebRoutes.php';
+require $appRoot . '/src/CsvExport.php';
 require $appRoot . '/src/RoomForms.php';
 require $appRoot . '/src/ManagementRoutes.php';
 require $appRoot . '/src/AuthThrottle.php';
