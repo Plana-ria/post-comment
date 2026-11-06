@@ -73,6 +73,14 @@ session_name($config['session']['name'] ?? 'post_comment_session');
 session_set_cookie_params(['lifetime'=>0,'path'=>'/','secure'=>$secure,'httponly'=>true,'samesite'=>'Lax']);
 session_start();
 
+// Every HTTP request holds a shared lock; restoring a database requires
+// an exclusive lock and never races against active requests.
+$lockDirectory=dirname((string)($config['storage']['database_path']??''));
+$maintenanceHandle=@fopen($lockDirectory.'/maintenance.lock','c');
+if ($maintenanceHandle === false || !flock($maintenanceHandle, LOCK_SH | LOCK_NB)) {
+    page('メンテナンス中','<p>データを更新しています。しばらくしてからアクセスしてください。</p>',503);
+}
+
 try {
     $db = Database::connect($config);
 } catch (Throwable $e) {

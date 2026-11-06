@@ -7,6 +7,7 @@ require dirname(__DIR__) . '/src/ChatService.php';
 require dirname(__DIR__) . '/src/RoomForms.php';
 require dirname(__DIR__) . '/src/AuthThrottle.php';
 require dirname(__DIR__) . '/src/BackupService.php';
+require dirname(__DIR__) . '/src/RestoreService.php';
 
 use PostComment\Database;
 use PostComment\Migrator;
@@ -15,6 +16,7 @@ use PostComment\ChatService;
 use PostComment\RoomForms;
 use PostComment\AuthThrottle;
 use PostComment\BackupService;
+use PostComment\RestoreService;
 
 $dir = sys_get_temp_dir() . '/post-comment-test-' . bin2hex(random_bytes(6));
 if (!mkdir($dir, 0700) && !is_dir($dir)) {
@@ -159,7 +161,22 @@ try {
         throw new RuntimeException('Backup does not contain current comments');
     }
     $copy=null;
+    $active=$dir.'/restored-active.sqlite';
+    $staged=$dir.'/restore-staged.sqlite';
+    if (!copy($backup,$active) || !copy($backup,$staged)) throw new RuntimeException('Could not prepare restore test');
+    $original=new PDO('sqlite:'.$active);
+    $original->exec('DELETE FROM comments');
+    $original=null;
+    $previous=(new RestoreService())->restore($active,$staged,$backupDir,$dir.'/maintenance.lock');
+    $restored=new PDO('sqlite:'.$active);
+    if ((int)$restored->query('SELECT COUNT(*) FROM comments')->fetchColumn() < 2) {
+        throw new RuntimeException('Browser restore backend lost comments');
+    }
+    $restored=null;
+    unlink($active);
+    unlink($previous);
     unlink($backup);
+    unlink($dir.'/maintenance.lock');
     rmdir($backupDir);
     echo "Smoke tests passed\n";
 } finally {

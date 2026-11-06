@@ -72,6 +72,13 @@ final class OperationsRoutes
             .'投稿・認証情報を含むため、取得したファイルは安全な場所に保管してください。</p>'
             .'<form method="post" action="?route=download-backup">'
             .'<input type="hidden" name="csrf" value="'.html(csrfToken()).'"><button>DBをバックアップ</button></form>'
+            .'<h2>バックアップから復元</h2><p>管理画面から取得したDBファイルを選択してください。'
+            .'復元前に現在のDBを自動バックアップし、復元完了後は再ログインが必要です。'
+            .'既存の投稿・設定は復元元の内容へ置き換わります。</p>'
+            .'<form method="post" action="restore.php" enctype="multipart/form-data">'
+            .'<input type="hidden" name="csrf" value="'.html(csrfToken()).'">'
+            .'<label>SQLiteバックアップ<input type="file" name="backup" accept=".sqlite,.db,application/octet-stream" required></label>'
+            .'<button>DBを復元</button></form>'
             .'<h2>管理者の認証情報を再発行</h2><p>新しい認証コードを発行すると以前の認証情報とセッションは使用できなくなります。</p>';
         foreach($admins as $a) {
             $body.='<form method="post" action="?route=admin-reset">'
