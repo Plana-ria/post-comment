@@ -56,7 +56,7 @@ try {
         throw new RuntimeException('Initial migration unexpectedly absent');
     }
     $applied = Migrator::migrate($db, $folder);
-    if ($applied !== ['001_initial', '002_auth_throttling', '003_admin_auth_revision', '004_legacy_import_unique']) {
+    if ($applied !== ['001_initial', '002_auth_throttling', '003_admin_auth_revision', '004_legacy_import_unique', '005_form_drafts']) {
         throw new RuntimeException('Migration failed');
     }
     if (Migrator::pending($db, $folder)) {
@@ -175,8 +175,20 @@ try {
     $new['title'] = '授業への質問';
     $new['fields'][4]['label'] = '質問内容';
     $new['fields'][] = ['key'=>'category','type'=>'select','label'=>'分類','required'=>true,'options'=>['質問','感想']];
+    $forms->saveDraft($authenticatedRoom,$new,$adminId,$previousVersion);
+    $savedDraft=$forms->draft($authenticatedRoom);
+    if (!$savedDraft || $savedDraft['definition']['title']!=='授業への質問' ||
+        $service->roomById($authenticatedRoom)['active_form_version_id']!==$previousVersion) {
+        throw new RuntimeException('Saving draft changed published form or lost draft');
+    }
+    try {
+        $forms->saveDraft($authenticatedRoom,$new,$adminId,'ffffffffffffffffffffffffffffffff');
+        throw new RuntimeException('Stale draft unexpectedly accepted');
+    } catch (RuntimeException $e) {
+        if (str_contains($e->getMessage(),'unexpectedly accepted')) throw $e;
+    }
     $version = $forms->publish($authenticatedRoom,$new,$adminId);
-    if ($version !== 2 || count($forms->versions($authenticatedRoom)) !== 2) {
+    if ($version !== 2 || count($forms->versions($authenticatedRoom)) !== 2 || $forms->draft($authenticatedRoom)!==null) {
         throw new RuntimeException('Form version publication failed');
     }
     $room = $service->roomById($authenticatedRoom);
