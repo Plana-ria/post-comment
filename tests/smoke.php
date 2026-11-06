@@ -389,6 +389,7 @@ try {
             'post-comment-private/src/Migrator.php'=>'<?php',
             'public/index.php'=>'<?php',
             'public/bootstrap.php'=>'<?php',
+            'public/update.php'=>'<?php unwanted replacement',
         ] as $filename=>$data) $zip->addFromString($filename,$data);
         $zip->close();
         $pair=sodium_crypto_sign_keypair();
@@ -396,7 +397,7 @@ try {
         $private=sodium_crypto_sign_secretkey($pair);
         file_put_contents($signature,base64_encode(sodium_crypto_sign_detached(hash_file('sha256',$fixture,true),$private)));
         $info=SignedPackage::inspect($fixture,$signature,$public,'1.0.0');
-        if ($info['version']!=='1.2.3' || count($info['entries'])!==5) throw new RuntimeException('Signed package inspection failed');
+        if ($info['version']!=='1.2.3' || count($info['entries'])!==6) throw new RuntimeException('Signed package inspection failed');
         file_put_contents($signature,base64_encode(random_bytes(64)));
         try {
             SignedPackage::inspect($fixture,$signature,$public,'1.0.0');
@@ -420,6 +421,7 @@ try {
         file_put_contents($siteSrc.'/Migrator.php','old migration code');
         file_put_contents($webroot.'/index.php','old public code');
         file_put_contents($webroot.'/bootstrap.php','old bootstrap code');
+        file_put_contents($webroot.'/update.php','independent recovery updater');
         foreach (glob(dirname(__DIR__).'/database/migrations/*.sql') as $migrationFile) {
             copy($migrationFile,$siteMigrations.'/'.basename($migrationFile));
         }
@@ -429,6 +431,7 @@ try {
         $result=UpdateService::apply($site,$webroot,$fixture,$signature,$public,$siteStorage.'/database.sqlite',$updateBackups);
         if ($result['version']!=='1.2.3' || trim(file_get_contents($site.'/VERSION'))!=='1.2.3'
             || file_get_contents($webroot.'/index.php')!=='<?php'
+            || file_get_contents($webroot.'/update.php')!=='independent recovery updater'
             || is_file($siteStorage.'/maintenance.update')) {
             throw new RuntimeException('Signed updater did not deploy cleanly');
         }
