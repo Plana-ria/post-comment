@@ -153,6 +153,24 @@ must("コメントを送信しました",old_post)
 if "OldFormSurname" not in request(admin,"route=admin-csv&room_id="+room_id):
     raise AssertionError("Historical form submission was not preserved")
 
+# Do not accept cross-site POSTs, and never render user input as HTML.
+payload = "<img src=x onerror=alert(1)>"
+form_version = re.search(r'name="form_version" value="([a-f0-9]{32})"',updated_form).group(1)
+request(participant, "route=submit", {
+    "slug":"browser-room","form_version":form_version,
+    "comment":"Rejected without CSRF",
+},expect=403)
+new_post=request(participant,"route=submit",{
+    "csrf":token(updated_form),"slug":"browser-room",
+    "form_version":form_version,"comment":payload,
+})
+must("コメントを送信しました",new_post)
+displayed=request(admin,"route=room-admin&room_id="+room_id)
+if payload in displayed or "&lt;img" not in displayed:
+    raise AssertionError("Stored comment was not safely HTML escaped")
+if payload not in request(admin,"route=admin-csv&room_id="+room_id):
+    raise AssertionError("Admin CSV did not preserve original comment bytes")
+
 # A single system-wide identity must work in a second authenticated room.
 create_room("browser-room-2","required")
 other = client()
