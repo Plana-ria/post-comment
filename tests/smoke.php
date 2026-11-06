@@ -9,6 +9,7 @@ require dirname(__DIR__) . '/src/AuthThrottle.php';
 require dirname(__DIR__) . '/src/BackupService.php';
 require dirname(__DIR__) . '/src/RestoreService.php';
 require dirname(__DIR__) . '/src/LegacyCsvImporter.php';
+require dirname(__DIR__) . '/src/EmergencyRecovery.php';
 
 use PostComment\Database;
 use PostComment\Migrator;
@@ -19,6 +20,7 @@ use PostComment\AuthThrottle;
 use PostComment\BackupService;
 use PostComment\RestoreService;
 use PostComment\LegacyCsvImporter;
+use PostComment\EmergencyRecovery;
 
 $dir = sys_get_temp_dir() . '/post-comment-test-' . bin2hex(random_bytes(6));
 if (!mkdir($dir, 0700) && !is_dir($dir)) {
@@ -187,6 +189,11 @@ try {
     }
     $adminVersion=(int)$db->query("SELECT auth_version FROM administrators WHERE login_id='admin'")->fetchColumn();
     if ($adminVersion !== 1) throw new RuntimeException('Administrator auth revision migration failed');
+    $code=(new EmergencyRecovery($db))->regenerate('admin');
+    $reset=$db->query("SELECT secret_hash,auth_version FROM administrators WHERE login_id='admin'")->fetch();
+    if ((int)$reset['auth_version']!==2 || !password_verify($code,$reset['secret_hash'])) {
+        throw new RuntimeException('Emergency administrator reset failed');
+    }
     $backupDir=$dir.'/backups';
     if (!mkdir($backupDir,0700)) throw new RuntimeException('Could not create backup directory');
     $backup=(new BackupService($db))->create($backupDir);
