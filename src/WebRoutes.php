@@ -111,7 +111,7 @@ final class WebRoutes
             } else {
                 $cookieName = 'pc_anon_' . substr(hash('sha256',$room['id']),0,16);
                 $token = is_string($_COOKIE[$cookieName] ?? null) ? $_COOKIE[$cookieName] : null;
-                if ($route === 'room' || $route === 'submit') {
+                if ($room['status'] === 'active' && ($route === 'room' || $route === 'submit')) {
                     $anon = $service->acceptAnonymous($room['id'],$token);
                     $anonId = $anon['id'];
                     if ($anon['token'] !== null) {
