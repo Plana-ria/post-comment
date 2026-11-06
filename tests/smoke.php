@@ -4,11 +4,13 @@ require dirname(__DIR__) . '/src/Database.php';
 require dirname(__DIR__) . '/src/Migrator.php';
 require dirname(__DIR__) . '/src/FormDefinition.php';
 require dirname(__DIR__) . '/src/ChatService.php';
+require dirname(__DIR__) . '/src/RoomForms.php';
 
 use PostComment\Database;
 use PostComment\Migrator;
 use PostComment\FormDefinition;
 use PostComment\ChatService;
+use PostComment\RoomForms;
 
 $dir = sys_get_temp_dir() . '/post-comment-test-' . bin2hex(random_bytes(6));
 if (!mkdir($dir, 0700) && !is_dir($dir)) {
@@ -80,6 +82,44 @@ try {
     if (count($service->adminComments($anonymousRoom, 0, null)) !== 1) {
         throw new RuntimeException('Admin room export failed');
     }
+
+    $forms = new RoomForms($db);
+    $original = $service->form($room);
+    $previousVersion = $room['active_form_version_id'];
+    $new = $original;
+    $new['title'] = '授業への質問';
+    $new['fields'][4]['label'] = '質問内容';
+    $new['fields'][] = ['key'=>'category','type'=>'select','label'=>'分類','required'=>true,'options'=>['質問','感想']];
+    $version = $forms->publish($authenticatedRoom,$new,$adminId);
+    if ($version !== 2 || count($forms->versions($authenticatedRoom)) !== 2) {
+        throw new RuntimeException('Form version publication failed');
+    }
+    $room = $service->roomById($authenticatedRoom);
+    $input['category'] = '質問';
+    $service->submit($room,$service->form($room),$input,$user['id'],null);
+    $past=$db->prepare('SELECT form_version_id FROM comments WHERE room_id=? ORDER BY id');
+    $past->execute([$authenticatedRoom]);
+    $linked=$past->fetchAll(PDO::FETCH_COLUMN);
+    if (count($linked)!==2 || $linked[0]!==$previousVersion || $linked[1]!==$room['active_form_version_id']) {
+        throw new RuntimeException('Historical form versions were not preserved');
+    }
+    $editor = [
+        'title'=>'アンケート','description'=>'テスト','submit_label'=>'送信',
+        'fields'=>[
+            ['key'=>'message','type'=>'textarea','label'=>'感想','required'=>'1','comment_body'=>'1'],
+            ['key'=>'kind','type'=>'select','label'=>'種別','options'=>"質問\n感想"],
+        ],
+    ];
+    $parsed=RoomForms::fromEditor($editor);
+    if ($parsed['fields'][0]['role']!=='comment_body' || $parsed['fields'][1]['options']!==['質問','感想']) {
+        throw new RuntimeException('Form editor serialization failed');
+    }
+    try {
+        RoomForms::fromEditor(['title'=>'X','description'=>'','submit_label'=>'送信','fields'=>[
+            ['key'=>'bad','type'=>'text','label'=>'Missing comment body']
+        ]]);
+        throw new RuntimeException('Form missing required body accepted');
+    } catch (InvalidArgumentException $e) {}
     echo "Smoke tests passed\n";
 } finally {
     $db = null;
