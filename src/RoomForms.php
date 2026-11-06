@@ -39,7 +39,8 @@ final class RoomForms
             $this->db->exec('COMMIT');
             return $version;
         } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) $this->db->exec('ROLLBACK');
+            // PDO::inTransaction() may not track BEGIN IMMEDIATE issued via exec().
+            try { $this->db->exec('ROLLBACK'); } catch (\Throwable $rollbackError) { /* Nothing to roll back. */ }
             throw $e;
         }
     }
