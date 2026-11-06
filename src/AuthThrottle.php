@@ -24,15 +24,22 @@ final class AuthThrottle
     public function failure(string $scope, string $identity, int $max=6, int $period=900): void
     {
         $now = time();
-        $this->db->prepare('INSERT INTO auth_attempts(scope,identity_hash,window_start,attempts,blocked_until)
-            VALUES (?,?,?,1,0)
-            ON CONFLICT(scope,identity_hash) DO UPDATE SET
-                window_start = CASE WHEN auth_attempts.window_start < ? THEN excluded.window_start ELSE auth_attempts.window_start END,
-                attempts = CASE WHEN auth_attempts.window_start < ? THEN 1 ELSE auth_attempts.attempts+1 END,
-                blocked_until = CASE
-                    WHEN auth_attempts.window_start < ? THEN 0
-                    WHEN auth_attempts.attempts+1 >= ? THEN ? ELSE auth_attempts.blocked_until END')
-            ->execute([$scope,hash('sha256',$identity),$now,$now-$period,$now-$period,$now-$period,$max,$now+$period]);
+        $hash = hash('sha256', $identity);
+        $this->db->prepare('INSERT OR IGNORE INTO auth_attempts(scope,identity_hash,window_start,attempts,blocked_until)
+            VALUES (?,?,?,0,0)')->execute([$scope,$hash,$now]);
+        $stmt = $this->db->prepare('UPDATE auth_attempts SET
+            attempts = CASE WHEN window_start <= ? THEN 1 ELSE attempts+1 END,
+            blocked_until = CASE
+                WHEN window_start <= ? THEN 0
+                WHEN attempts+1 >= ? THEN ? ELSE blocked_until END,
+            window_start = CASE WHEN window_start <= ? THEN ? ELSE window_start END
+            WHERE scope=? AND identity_hash=?');
+        $stmt->execute([$now-$period,$now-$period,$max,$now+$period,$now-$period,$now,$scope,$hash]);
+        // Lock on the threshold even for a newly inserted row and guard
+        // against different SQLite expression evaluation order.
+        $this->db->prepare('UPDATE auth_attempts SET blocked_until=? WHERE scope=? AND identity_hash=?
+            AND attempts >= ? AND blocked_until < ?')
+            ->execute([$now+$period,$scope,$hash,$max,$now]);
     }
 
     public function success(string $scope, string $identity): void
