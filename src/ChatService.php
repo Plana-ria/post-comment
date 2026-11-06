@@ -118,16 +118,16 @@ final class ChatService
 
     public function authenticateUser(string $login, string $code): ?array
     {
-        $stmt = $this->db->prepare('SELECT id, login_id, code_hash FROM users WHERE login_id=? AND disabled_at IS NULL');
+        $stmt = $this->db->prepare('SELECT id, login_id, code_hash, code_version FROM users WHERE login_id=? AND disabled_at IS NULL');
         $stmt->execute([$login]);
         $user = $stmt->fetch();
         if (!$user || !password_verify($code, $user['code_hash'])) return null;
-        return ['id'=>$user['id'],'login_id'=>$user['login_id']];
+        return ['id'=>$user['id'],'login_id'=>$user['login_id'],'code_version'=>(int)$user['code_version']];
     }
 
     public function activeUser(string $id): ?array
     {
-        $stmt = $this->db->prepare('SELECT id,login_id FROM users WHERE id=? AND disabled_at IS NULL');
+        $stmt = $this->db->prepare('SELECT id,login_id,code_version FROM users WHERE id=? AND disabled_at IS NULL');
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }
