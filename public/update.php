@@ -38,7 +38,7 @@ if (!is_file($configFile)) updatePage('更新できません','<p>初回イン�
 $config=require $configFile;
 if (!is_array($config)) updatePage('更新できません','<p>設定が不正です。</p>',503);
 $secure=(bool)($config['session']['secure_cookie']??true);
-if ($secure && ($_SERVER['HTTPS']??'')!=='on') updatePage('HTTPSが必要です','',403);
+if ($secure && !postCommentHttps()) updatePage('HTTPSが必要です','',403);
 session_name((string)($config['session']['name']??'post_comment_session'));
 $cookiePath=(string)($config['url']['base_path']??'');
 $cookiePath=$cookiePath===''?'/':rtrim($cookiePath,'/').'/';
