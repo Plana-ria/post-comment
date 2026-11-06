@@ -17,8 +17,23 @@ final class BackupService
             throw new RuntimeException('バックアップ保存先を確認してください。');
         }
         $path = rtrim($backupDir, '/').'/backup-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(8)).'.sqlite';
-        $statement = $this->db->prepare('VACUUM INTO ?');
+        // Run VACUUM on a fresh connection: unrelated open PDO cursors in
+        // this HTTP request must not make a consistent backup fail.
+        $list = $this->db->query('PRAGMA database_list');
+        $databases = $list->fetchAll(PDO::FETCH_ASSOC);
+        $list->closeCursor();
+        $main = array_values(array_filter($databases, static fn($row) => $row['name'] === 'main'));
+        $dbPath = (string)($main[0]['file'] ?? '');
+        if ($dbPath === '' || !is_file($dbPath) || is_link($dbPath)) {
+            throw new RuntimeException('バックアップ元のSQLiteファイルが不正です。');
+        }
+        $source = new PDO('sqlite:'.$dbPath, null, null, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        ]);
+        $statement = $source->prepare('VACUUM INTO ?');
         $statement->execute([$path]);
+        $statement->closeCursor();
+        $source = null;
         if (!is_file($path) || filesize($path) === 0) {
             @unlink($path);
             throw new RuntimeException('バックアップを作成できませんでした。');
