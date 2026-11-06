@@ -141,6 +141,7 @@ final class UpdateService
                 'code_backup'=>$codeBackup,
             ];
         } catch (Throwable $e) {
+            $newDb = null; // Close any SQLite handle before restoring the database file.
             if ($changes !== []) {
                 try {
                     foreach (array_reverse($changes) as $change) {

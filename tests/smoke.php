@@ -14,6 +14,7 @@ require dirname(__DIR__) . '/src/CsvExport.php';
 require dirname(__DIR__) . '/src/RoomForms.php';
 require dirname(__DIR__) . '/src/LegacyRoomCatalog.php';
 require dirname(__DIR__) . '/src/SignedPackage.php';
+require dirname(__DIR__) . '/src/UpdateService.php';
 require dirname(__DIR__) . '/src/AdministratorService.php';
 require dirname(__DIR__) . '/src/AuthThrottle.php';
 require dirname(__DIR__) . '/src/BackupService.php';
@@ -30,6 +31,7 @@ use PostComment\CsvExport;
 use PostComment\RoomForms;
 use PostComment\LegacyRoomCatalog;
 use PostComment\SignedPackage;
+use PostComment\UpdateService;
 use PostComment\AdministratorService;
 use PostComment\AuthThrottle;
 use PostComment\BackupService;
@@ -329,6 +331,50 @@ try {
             throw new RuntimeException('Invalid signature accepted');
         } catch (RuntimeException $e) {
             if (str_contains($e->getMessage(),'accepted')) throw $e;
+        }
+        // Integration test: signed ZIP replaces code, preserves SQLite and creates backups.
+        file_put_contents($signature,base64_encode(sodium_crypto_sign_detached(hash_file('sha256',$fixture,true),$private)));
+        $site=$dir.'/updater-site';
+        $webroot=$dir.'/updater-web';
+        $siteStorage=$site.'/storage';
+        $siteMigrations=$site.'/database/migrations';
+        $siteSrc=$site.'/src';
+        $updateBackups=$dir.'/updater-backups';
+        foreach ([$site,$webroot,$siteStorage,$site.'/database',$siteMigrations,$siteSrc,$updateBackups] as $folder) {
+            if (!is_dir($folder) && !mkdir($folder,0700)) throw new RuntimeException('Cannot create updater fixture');
+        }
+        file_put_contents($site.'/VERSION',"1.0.0\n");
+        file_put_contents($siteSrc.'/Database.php','old DB code');
+        file_put_contents($siteSrc.'/Migrator.php','old migration code');
+        file_put_contents($webroot.'/index.php','old public code');
+        file_put_contents($webroot.'/bootstrap.php','old bootstrap code');
+        foreach (glob(dirname(__DIR__).'/database/migrations/*.sql') as $migrationFile) {
+            copy($migrationFile,$siteMigrations.'/'.basename($migrationFile));
+        }
+        $snapshot=(new BackupService($db))->create($dir);
+        if (!copy($snapshot,$siteStorage.'/database.sqlite')) throw new RuntimeException('Cannot stage updater DB');
+        unlink($snapshot);
+        $result=UpdateService::apply($site,$webroot,$fixture,$signature,$public,$siteStorage.'/database.sqlite',$updateBackups);
+        if ($result['version']!=='1.2.3' || trim(file_get_contents($site.'/VERSION'))!=='1.2.3'
+            || file_get_contents($webroot.'/index.php')!=='<?php'
+            || is_file($siteStorage.'/maintenance.update')) {
+            throw new RuntimeException('Signed updater did not deploy cleanly');
+        }
+        $updatedDb=new PDO('sqlite:'.$siteStorage.'/database.sqlite');
+        if ($updatedDb->query('PRAGMA integrity_check')->fetchColumn()!=='ok') {
+            throw new RuntimeException('Signed updater damaged database');
+        }
+        $updatedDb=null;
+        foreach ([$site,$webroot,$updateBackups] as $folder) {
+            $iterator=new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($folder,FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($iterator as $item) {
+                if ($item->isDir()) rmdir($item->getPathname());
+                else unlink($item->getPathname());
+            }
+            rmdir($folder);
         }
         @unlink($fixture);
         @unlink($signature);
