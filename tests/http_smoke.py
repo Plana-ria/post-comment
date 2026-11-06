@@ -50,6 +50,9 @@ request(admin, "route=login", {
     "csrf": token(login), "login_id": "owner",
     "secret": "very-long-system-admin-secret",
 })
+dashboard = request(admin, "route=home")
+must("担当ルーム一覧", dashboard)
+must("システム保守", dashboard)
 rooms = request(admin, "route=rooms")
 must("新規ルーム作成", rooms)
 

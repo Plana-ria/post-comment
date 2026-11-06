@@ -273,7 +273,7 @@ if ($route === 'login') {
         . '<button>ログイン</button></form>');
 }
 if (empty($_SESSION['admin_id'])) redirect('login');
-$stmt = $db->prepare('SELECT login_id FROM administrators WHERE id = ? AND disabled_at IS NULL');
+$stmt = $db->prepare('SELECT login_id,role FROM administrators WHERE id = ? AND disabled_at IS NULL');
 $stmt->execute([$_SESSION['admin_id']]);
 $admin = $stmt->fetch();
 if (!$admin) {
@@ -283,5 +283,15 @@ if (!$admin) {
 if ($route !== 'home') {
     page('未実装', '<p>この機能は開発中です。</p><p><a href="?route=home">戻る</a></p>', 404);
 }
-page('管理ダッシュボード', '<p>ログイン中：' . html($admin['login_id']) . '</p><p>SQLite基盤の初期設定が完了しました。ルーム・投稿・フォーム編集・更新機能は今後実装します。</p>'
-    . '<form method="post" action="?route=logout"><input type="hidden" name="csrf" value="' . html(csrfToken()) . '"><button>ログアウト</button></form>');
+$menu='<nav aria-label="管理メニュー"><ul>'
+    .'<li><a href="?route=rooms">担当ルーム一覧・受信画面</a></li>';
+if ($admin['role']==='system') {
+    $menu.='<li><a href="?route=room-create">新規ルームを作成</a></li>'
+        .'<li><a href="?route=admins">管理者アカウント管理</a></li>'
+        .'<li><a href="?route=operations">システム保守・バックアップ・更新</a></li>';
+}
+$menu.='</ul></nav>';
+page('管理ダッシュボード',
+    '<p>ログイン中：'.html($admin['login_id']).'（'.($admin['role']==='system'?'システム管理者':'ルーム管理者').'）</p>'
+    .$menu
+    .'<form method="post" action="?route=logout"><input type="hidden" name="csrf" value="'.html(csrfToken()).'"><button>ログアウト</button></form>');
