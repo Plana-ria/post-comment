@@ -3,6 +3,7 @@
 import csv
 import html
 import io
+import sqlite3
 import re
 import sys
 from urllib.parse import urlencode
