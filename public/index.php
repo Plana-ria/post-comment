@@ -177,11 +177,11 @@ if (!$installed) {
             page('設定を確認してください', '<p class="err">セットアップキー、管理者ID、または管理者用認証文字列が不正です。</p><p><a href="?route=setup">戻る</a></p>', 400);
         }
         try {
-            $db->exec('BEGIN IMMEDIATE');
+            $db->beginTransaction();
             if (Migrator::pending($db, $migrations)) {
                 $db->commit();
                 Migrator::migrate($db, $migrations);
-                $db->exec('BEGIN IMMEDIATE');
+                $db->beginTransaction();
             }
             $count = (int) $db->query('SELECT COUNT(*) FROM administrators')->fetchColumn();
             if ($count !== 0) {
