@@ -245,7 +245,9 @@ final class ChatService
             if (($field['role']??'')==='comment_body') $comment=$value;
         }
         if ($comment === null || $comment==='') throw new RuntimeException('Comment body required.');
-        $this->db->beginTransaction();
+        // Acquire the SQLite writer reservation before querying room state.
+        // BEGIN DEFERRED can deadlock on a read-to-write lock upgrade.
+        $this->db->exec('BEGIN IMMEDIATE');
         try {
             // Keep the rendered form version for a submission that is in-flight
             // when an administrator publishes a newer version.
@@ -264,9 +266,9 @@ final class ChatService
             }
             $stmt=$this->db->prepare('INSERT INTO comments(room_id,user_id,anonymous_session_id,form_version_id,comment_text,submitted_values_json,created_at) VALUES(?,?,?,?,?,?,?)');
             $stmt->execute([$room['id'],$userId,$anonymousId,$formVersionId,$comment,json_encode($values,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE),gmdate('Y-m-d\TH:i:s\Z')]);
-            $this->db->commit();
+            $this->db->exec('COMMIT');
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            try { $this->db->exec('ROLLBACK'); } catch (\Throwable $rollbackError) {}
             throw $e;
         }
     }
