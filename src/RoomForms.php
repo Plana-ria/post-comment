@@ -74,6 +74,10 @@ final class RoomForms
                 'label' => $label,
                 'required' => !empty($raw['required']),
             ];
+            foreach (['description','placeholder'] as $setting) {
+                $value=trim((string)($raw[$setting] ?? ''));
+                if ($value!=='') $row[$setting]=$value;
+            }
             if (!empty($raw['comment_body'])) $row['role'] = 'comment_body';
             if (in_array($type, ['select','radio'], true)) {
                 $options = array_values(array_filter(array_map('trim', preg_split('/\r\n|\n|\r/', (string)($raw['options'] ?? '')) ?: []), static fn($v) => $v !== ''));

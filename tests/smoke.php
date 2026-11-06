@@ -147,10 +147,11 @@ try {
         'title'=>'アンケート','description'=>'テスト','submit_label'=>'送信',
         'fields'=>[
             ['key'=>'message','type'=>'textarea','label'=>'感想','required'=>'1','comment_body'=>'1'],
-            ['key'=>'kind','type'=>'select','label'=>'種別','options'=>"質問\n感想"],
+            ['key'=>'kind','type'=>'select','label'=>'種別','options'=>"質問\n感想",'description'=>'区分を選択','placeholder'=>'選択してください'],
         ],
     ];
     $parsed=RoomForms::fromEditor($editor);
+    if ($parsed['fields'][1]['description']!=='区分を選択' || $parsed['fields'][1]['placeholder']!=='選択してください') throw new RuntimeException('Form display settings lost');
     if ($parsed['fields'][0]['role']!=='comment_body' || $parsed['fields'][1]['options']!==['質問','感想']) {
         throw new RuntimeException('Form editor serialization failed');
     }

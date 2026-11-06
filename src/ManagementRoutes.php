@@ -67,13 +67,14 @@ final class ManagementRoutes
             }
             $body = '<p>投稿項目を追加・削除・並べ替えできます。保存すると新しいフォーム版を公開します。</p>';
             if ($error !== '') $body.='<p class="err">'.$error.'</p>';
-            $body.='<form method="post" action="?route=form-edit">'.self::csrf()
+            $body.='<form id="form-editor" method="post" action="?route=form-edit">'.self::csrf()
                 .'<input type="hidden" name="room_id" value="'.html($roomId).'">'
                 .'<input type="hidden" name="original_version" value="'.html($room['active_form_version_id']).'">'
                 .'<label>フォームタイトル<input name="title" maxlength="160" required value="'.html($form['title']??'コメント投稿').'"></label>'
                 .'<label>説明文<textarea name="description" maxlength="5000">'.html($form['description']??'').'</textarea></label>'
                 .'<label>送信ボタン<input name="submit_label" maxlength="60" required value="'.html($form['submit_label']??'送信').'"></label>'
                 .'<p>行は上から順に表示します。不要な行は「削除」にチェックを入れてください。キーは半角英数字とアンダースコア（英小文字で始める）です。</p>';
+            $body.='<div id="form-fields">';
             $fields=$form['fields'];
             $rows=max(count($fields)+4,8);
             $rows=min(40,$rows);
@@ -81,19 +82,26 @@ final class ManagementRoutes
                 $field=$fields[$i]??[];
                 $type=$field['type']??'text';
                 $options=implode("\n",$field['options']??[]);
-                $body.='<fieldset><legend>項目 '.($i+1).'</legend>'
+                $body.='<fieldset class="form-field"><legend>項目 '.($i+1).'</legend>'
                     .'<label>項目キー<input name="fields['.$i.'][key]" maxlength="50" value="'.html($field['key']??'').'"></label>'
                     .'<label>表示名<input name="fields['.$i.'][label]" maxlength="160" value="'.html($field['label']??'').'"></label>'
                     .'<label>入力形式<select name="fields['.$i.'][type]">';
                 foreach (['text'=>'1行テキスト','textarea'=>'複数行','email'=>'メールアドレス','select'=>'プルダウン','radio'=>'ラジオボタン','checkbox'=>'チェックボックス'] as $v=>$label) {
                     $body.='<option value="'.$v.'"'.($type===$v?' selected':'').'>'.$label.'</option>';
                 }
-                $body.='</select></label><label>選択肢（選択式の場合・1行1件）<textarea name="fields['.$i.'][options]" maxlength="3000">'.html($options).'</textarea></label>'
+                $body.='</select></label><label>補足説明<input name="fields['.$i.'][description]" maxlength="500" value="'.html($field['description']??'').'"></label>'
+                    .'<label>入力例（プレースホルダー）<input name="fields['.$i.'][placeholder]" maxlength="200" value="'.html($field['placeholder']??'').'"></label>'
+                    .'<label>選択肢（選択式の場合・1行1件）<textarea name="fields['.$i.'][options]" maxlength="3000">'.html($options).'</textarea></label>'
                     .'<label><input type="checkbox" name="fields['.$i.'][required]" value="1"'.(!empty($field['required'])?' checked':'').'>必須</label>'
                     .'<label><input type="checkbox" name="fields['.$i.'][comment_body]" value="1"'.(($field['role']??'')==='comment_body'?' checked':'').'>コメント本文として使う（必須・1か所だけ）</label>'
-                    .'<label><input type="checkbox" name="fields['.$i.'][omit]" value="1">削除する</label></fieldset>';
+                    .'<label><input type="checkbox" name="fields['.$i.'][omit]" value="1">削除する</label>'
+                    .'<button type="button" data-move="up">上へ</button> <button type="button" data-move="down">下へ</button></fieldset>';
             }
-            $body.='<button>このフォームを公開する</button></form><h2>公開履歴</h2><ul>';
+            $body.='</div><p><button type="button" id="add-field">項目を追加</button> '
+                .'<button type="button" id="preview-form">プレビュー</button></p>'
+                .'<section id="form-preview" hidden><h2>投稿フォームのプレビュー</h2><div id="preview-fields"></div></section>'
+                .'<button>このフォームを公開する</button></form>'
+                .'<script defer src="assets/form-builder.js"></script><h2>公開履歴</h2><ul>';
             foreach ($editor->versions($roomId) as $version) $body.='<li>v'.(int)$version['version_no'].'：'.html($version['published_at']).'</li>';
             $body.='</ul><p>さらに項目を追加する場合は、既存の空欄を使い切った後に公開すると、新しい空欄が表示されます。</p>'
                 .'<p><a href="?route=room-admin&amp;room_id='.rawurlencode($roomId).'">受信画面へ戻る</a></p>';

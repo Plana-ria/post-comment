@@ -64,6 +64,11 @@ final class FormDefinition
             if (mb_strlen($field['label']) > 160) {
                 throw new InvalidArgumentException('Field label is too long.');
             }
+            foreach (['description'=>500,'placeholder'=>200] as $setting=>$maximum) {
+                if (isset($field[$setting]) && (!is_string($field[$setting]) || mb_strlen($field[$setting])>$maximum)) {
+                    throw new InvalidArgumentException('Invalid field display setting.');
+                }
+            }
             if (isset($field['required']) && !is_bool($field['required'])) {
                 throw new InvalidArgumentException('Required flag must be boolean.');
             }

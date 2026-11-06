@@ -154,8 +154,9 @@ final class WebRoutes
                     $key=$field['key'];
                     $required = !empty($field['required']) ? ' required' : '';
                     $body.='<label>'.html($field['label']).($required?'（必須）':'');
+                    if (!empty($field['description'])) $body.='<small>'.html($field['description']).'</small>';
                     if ($field['type'] === 'textarea') {
-                        $body.='<textarea name="'.html($key).'"'.$required.' maxlength="10000"></textarea>';
+                        $body.='<textarea name="'.html($key).'"'.$required.' maxlength="10000" placeholder="'.html($field['placeholder']??'').'"></textarea>';
                     } elseif (in_array($field['type'],['select','radio'],true)) {
                         $body.='<select name="'.html($key).'"'.$required.'><option value="">選択してください</option>';
                         foreach (($field['options']??[]) as $option) {
@@ -166,7 +167,7 @@ final class WebRoutes
                         $body.='<input type="checkbox" name="'.html($key).'" value="1"'.$required.'>';
                     } else {
                         $type = $field['type']==='email'?'email':'text';
-                        $body.='<input type="'.$type.'" name="'.html($key).'"'.$required.' maxlength="1000">';
+                        $body.='<input type="'.$type.'" name="'.html($key).'"'.$required.' maxlength="1000" placeholder="'.html($field['placeholder']??'').'">';
                     }
                     $body.='</label>';
                 }
