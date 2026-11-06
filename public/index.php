@@ -12,6 +12,7 @@ require dirname(__DIR__) . '/src/ChatService.php';
 require dirname(__DIR__) . '/src/WebRoutes.php';
 require dirname(__DIR__) . '/src/RoomForms.php';
 require dirname(__DIR__) . '/src/ManagementRoutes.php';
+require dirname(__DIR__) . '/src/AuthThrottle.php';
 
 use PostComment\Database;
 use PostComment\Migrator;
@@ -89,8 +90,42 @@ $method = (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET');
 // administrators already exist. Check installation state independently.
 $hasAdminTable = (bool) $db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='administrators'")->fetchColumn();
 $installed = $hasAdminTable && (int) $db->query('SELECT COUNT(*) FROM administrators')->fetchColumn() > 0;
-if ($installed && $pending) {
-    page('更新が必要です', '<p>DBスキーマ更新を検出しました。更新ツールの実装が完了するまでは、保守担当者がバックアップを確認してください。</p>', 503);
+if ($installed && $pending && $route !== 'login') {
+    $stmt = $db->prepare("SELECT id FROM administrators WHERE id=? AND role='system' AND disabled_at IS NULL");
+    $stmt->execute([(string)($_SESSION['admin_id'] ?? '')]);
+    $authorized = (bool)$stmt->fetchColumn();
+    if ($route !== 'db-upgrade' || !$authorized) {
+        page('データベース更新が必要です', '<p>システム管理者でログインしてから更新してください。</p><p><a href="?route=login">管理者ログイン</a></p>', 503);
+    }
+    if ($method === 'POST') {
+        checkCsrf();
+        try {
+            $storage = dirname((string)$config['storage']['database_path']);
+            $backupDir = (string)($config['storage']['backup_path'] ?? ($storage.'/backups'));
+            if (!is_dir($backupDir) && !mkdir($backupDir,0700,true)) {
+                throw new RuntimeException('Backup directory could not be created');
+            }
+            if (!is_dir($backupDir) || !is_writable($backupDir) || is_link($backupDir)) {
+                throw new RuntimeException('Backup directory is not safe');
+            }
+            $target = $backupDir.'/pre-migration-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(5)).'.sqlite';
+            $q = $db->prepare('VACUUM INTO ?');
+            $q->execute([$target]);
+            if (!is_file($target) || filesize($target) === 0) throw new RuntimeException('Backup was not created');
+            $verification = new PDO('sqlite:'.$target);
+            if ($verification->query('PRAGMA integrity_check')->fetchColumn() !== 'ok') {
+                throw new RuntimeException('Backup integrity check failed');
+            }
+            $verification = null;
+            Migrator::migrate($db,$migrations);
+            redirect('home');
+        } catch (Throwable $e) {
+            error_log('PostComment migration failed: '.$e->getMessage());
+            page('更新に失敗しました', '<p>更新を停止しました。バックアップは保存されています。サーバー管理者に連絡してください。</p>', 503);
+        }
+    }
+    page('データベース更新', '<p>DBスキーマの更新があります。更新前にバックアップを自動作成し、変更を適用します。</p>'
+        . '<form method="post" action="?route=db-upgrade"><input type="hidden" name="csrf" value="'.html(csrfToken()).'"><button>バックアップして更新</button></form>',503);
 }
 
 if (!$installed) {
@@ -140,8 +175,8 @@ if (!$installed) {
         . '<button>設定を完了する</button></form>');
 }
 
-if ($pending) {
-    page('更新が必要です', '<p>DBスキーマの更新が必要です。データをバックアップし、対応する更新手順を確認してください。通常アクセスでは自動変更しません。</p>', 503);
+if ($pending && $installed && $route !== 'login') {
+    page('データベース更新が必要です', '<p>システム管理者でログインして更新してください。</p>',503);
 }
 
 if (\PostComment\ManagementRoutes::handle($db, $route, $method)) {
@@ -162,14 +197,21 @@ if ($route === 'logout') {
 if ($route === 'login') {
     if ($method === 'POST') {
         checkCsrf();
+        $throttle = new \PostComment\AuthThrottle($db);
+        $identity = strtolower(trim((string)($_POST['login_id'] ?? ''))) . '|' . (string)($_SERVER['REMOTE_ADDR'] ?? '');
+        if (!$throttle->allow('admin', $identity)) {
+            page('ログイン制限中', '<p>しばらくしてからやり直してください。</p>', 429);
+        }
         $stmt = $db->prepare("SELECT id, secret_hash FROM administrators WHERE login_id = ? AND disabled_at IS NULL");
         $stmt->execute([(string) ($_POST['login_id'] ?? '')]);
         $admin = $stmt->fetch();
         if ($admin && password_verify((string) ($_POST['secret'] ?? ''), $admin['secret_hash'])) {
+            $throttle->success('admin', $identity);
             session_regenerate_id(true);
             $_SESSION['admin_id'] = $admin['id'];
             redirect('home');
         }
+        $throttle->failure('admin', $identity);
         page('ログイン失敗', '<p>認証情報を確認してください。</p><p><a href="?route=login">戻る</a></p>', 401);
     }
     page('管理者ログイン', '<form method="post" action="?route=login">'
