@@ -215,4 +215,27 @@ request(guest,"route=submit",{
 anonymous_csv=request(guest,"route=own-csv&slug=anonymous-room")
 if not anonymous_csv.startswith("time,comment") or "Anonymous post" not in anonymous_csv or "PrivateAffiliation" in anonymous_csv:
     raise AssertionError("Anonymous participant CSV failed")
+# Exercise the browser's pending-schema workflow with an actual migration.
+# This used to fail because VACUUM ran on a connection with an open cursor.
+from pathlib import Path
+import sqlite3
+app_root = Path(__file__).resolve().parents[1]
+migration = app_root / "database/migrations/006_http_upgrade_smoke.sql"
+try:
+    migration.write_text("CREATE TABLE http_upgrade_smoke (id INTEGER PRIMARY KEY);\n", encoding="utf-8")
+    pending = request(admin, "route=home", expect=503)
+    must("データベース更新", pending)
+    upgrade = request(admin, "route=db-upgrade", expect=503)
+    must("バックアップして更新", upgrade)
+    completed = request(admin, "route=db-upgrade", {
+        "csrf": token(upgrade),
+    })
+    must("管理ダッシュボード", completed)
+    with sqlite3.connect(app_root / "storage/database.sqlite") as connection:
+        assert connection.execute(
+            "SELECT name FROM sqlite_master WHERE name='http_upgrade_smoke'"
+        ).fetchone() is not None, "Browser DB upgrade did not migrate"
+finally:
+    migration.unlink(missing_ok=True)
+
 print("HTTP integration tests passed")
