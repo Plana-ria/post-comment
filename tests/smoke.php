@@ -381,6 +381,13 @@ try {
     if (!$limiter->allow('participant','test-account')) {
         throw new RuntimeException('Rate limit was not cleared on success');
     }
+    $db->prepare('INSERT INTO auth_attempts(scope,identity_hash,window_start,attempts,blocked_until)
+        VALUES(?,?,?,?,?)')->execute(['stale_test',hash('sha256','stale'),
+            time()-172800,2,time()-172800]);
+    $limiter->prune();
+    if ((int)$db->query("SELECT COUNT(*) FROM auth_attempts WHERE scope='stale_test'")->fetchColumn()!==0) {
+        throw new RuntimeException('Expired authentication attempts were not pruned');
+    }
     $adminVersion=(int)$db->query("SELECT auth_version FROM administrators WHERE login_id='admin'")->fetchColumn();
     if ($adminVersion !== 1) throw new RuntimeException('Administrator auth revision migration failed');
     $code=(new EmergencyRecovery($db))->regenerate('admin');
