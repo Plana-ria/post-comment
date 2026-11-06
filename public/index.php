@@ -55,7 +55,8 @@ function redirect(string $route): never
 
 $configFile = dirname(__DIR__) . '/config.php';
 if (!is_file($configFile)) {
-    page('初期設定が必要です', '<p>まず <code>config.example.php</code> を <code>config.php</code> にコピーし、設置環境に合わせて設定してください。必ず <code>public/</code> だけをWeb公開してください。</p>', 503);
+    header('Location: install.php', true, 302);
+    exit;
 }
 $config = require $configFile;
 if (!is_array($config)) {
