@@ -12,14 +12,14 @@ final class FormDefinition
         return [
             'schema_version' => 1,
             'title' => 'コメント投稿',
-            'description' => '',
+            'description' => 'コメントログは、本人のユーザーIDでログインした場合にダウンロードできます。 / Your comment log is available after signing in with your own user ID.',
             'submit_label' => '送信',
             'fields' => [
-                ['key' => 'last_name', 'type' => 'text', 'label' => '姓', 'required' => true],
-                ['key' => 'first_name', 'type' => 'text', 'label' => '名', 'required' => true],
-                ['key' => 'affiliation', 'type' => 'text', 'label' => '所属（学部・学科など）', 'required' => true],
-                ['key' => 'email', 'type' => 'email', 'label' => 'メールアドレス', 'required' => false],
-                ['key' => 'comment', 'type' => 'textarea', 'label' => 'コメント', 'required' => true, 'role' => 'comment_body'],
+                ['key' => 'last_name', 'type' => 'text', 'label' => '姓', 'required' => true, 'placeholder' => '姓 / Last name'],
+                ['key' => 'first_name', 'type' => 'text', 'label' => '名', 'required' => true, 'placeholder' => '名 / First name'],
+                ['key' => 'affiliation', 'type' => 'text', 'label' => '所属（学部・学科など）', 'required' => true, 'placeholder' => '所属（学部・学科など） / Affiliation'],
+                ['key' => 'email', 'type' => 'email', 'label' => 'メールアドレス', 'required' => false, 'placeholder' => 'メールアドレス / E-mail', 'description' => '入力するよう指示がある場合のみ入力してください / Only if instructed, enter your email address'],
+                ['key' => 'comment', 'type' => 'textarea', 'label' => 'コメント', 'required' => true, 'role' => 'comment_body', 'placeholder' => 'コメントを入力してください / Enter your comments'],
             ],
         ];
     }
@@ -32,7 +32,7 @@ final class FormDefinition
             'description'=>'',
             'submit_label'=>'送信',
             'fields'=>[
-                ['key'=>'name','type'=>'text','label'=>'お名前','required'=>true],
+                ['key'=>'name','type'=>'text','label'=>'名前','required'=>true],
                 ['key'=>'comment','type'=>'textarea','label'=>'コメント','required'=>true,'role'=>'comment_body'],
             ],
         ];

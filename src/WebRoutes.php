@@ -143,7 +143,7 @@ final class WebRoutes
                     }
                     $_SESSION['post_success']=[
                         'room'=>$room['id'],
-                        'time'=>gmdate('Y-m-d\TH:i:s\Z'),
+                        'time'=>(new \DateTimeImmutable('now',new \DateTimeZone('Asia/Tokyo')))->format('Y/m/d H:i:s'),
                         'comment'=>substr((string)($_POST[$commentField]??''),0,20000),
                     ];
                     header('Location: ?route=room&slug=' . rawurlencode($room['slug']), true, 303); exit;
@@ -164,7 +164,7 @@ final class WebRoutes
             unset($_SESSION['post_success']);
             if (is_array($confirmation) && ($confirmation['room']??null)===$room['id']) {
                 $body.='<section role="status" aria-live="polite"><h2>コメントを送信しました</h2>'
-                    .'<p>投稿日時（UTC）：'.html((string)$confirmation['time']).'</p>'
+                    .'<p>投稿日時：'.html((string)$confirmation['time']).'</p>'
                     .'<p>'.nl2br(html((string)$confirmation['comment'])).'</p></section>';
             }
             if ($room['status'] === 'active') {

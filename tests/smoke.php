@@ -70,6 +70,10 @@ try {
         throw new RuntimeException('Foreign key enforcement disabled');
     }
     FormDefinition::validate(FormDefinition::defaults());
+    if (FormDefinition::defaults()['fields'][3]['description'] === ''
+        || FormDefinition::defaults()['fields'][4]['placeholder'] !== 'コメントを入力してください / Enter your comments') {
+        throw new RuntimeException('Default form does not preserve legacy instructions');
+    }
     $bad = FormDefinition::defaults();
     $bad['fields'][4]['required'] = false;
     try {
