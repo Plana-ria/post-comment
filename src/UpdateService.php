@@ -48,7 +48,7 @@ final class UpdateService
         $maintenance=null;
         $changes=[];
         $backup=null;
-        $switched=false;
+        $recoveryRequired=false;
         try {
             if (file_exists($flag)) {
                 throw new RuntimeException('前回の更新保守フラグが残っています。管理者に連絡してください。');
@@ -97,6 +97,7 @@ final class UpdateService
             $sourceDb=null;
             // Preflight paths before changing a single active file.
             foreach (array_keys($package['entries']) as $entry) {
+                if ($entry === 'public/update.php') continue; // Keep independent updater stable.
                 $target=self::target($entry,$root,$webRoot);
                 if (is_link($target) || (file_exists($target) && !is_file($target))) {
                     throw new RuntimeException('書き換え対象に不正なファイルが見つかりました。');
@@ -124,7 +125,6 @@ final class UpdateService
                 }
                 $changes[]=['target'=>$target,'saved'=>$saved,'existed'=>$existed];
             }
-            $switched=true;
             // Migration files have now been authenticated and installed.
             require_once $root.'/src/Migrator.php';
             $newDb=new PDO('sqlite:'.$databasePath,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
@@ -161,6 +161,7 @@ final class UpdateService
                         }
                     }
                 } catch (Throwable $rollbackError) {
+                    $recoveryRequired=true;
                     error_log('CRITICAL: PostComment update rollback failed: '.$rollbackError->getMessage());
                     throw new RuntimeException('更新・復旧が失敗しました。手動復旧が必要です。',0,$rollbackError);
                 }
@@ -168,7 +169,7 @@ final class UpdateService
             throw $e;
         } finally {
             if (is_dir($stage)) self::removeDirectory($stage);
-            if (is_file($flag) && trim((string)@file_get_contents($flag))===$id) @unlink($flag);
+            if (!$recoveryRequired && is_file($flag) && trim((string)@file_get_contents($flag))===$id) @unlink($flag);
             if ($maintenance) {
                 flock($maintenance,LOCK_UN);
                 fclose($maintenance);

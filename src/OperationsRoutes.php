@@ -69,7 +69,8 @@ final class OperationsRoutes
                 error_log('Release check failed: '.$e->getMessage());
                 $body.='<p>最新情報を取得できませんでした。GitHubの接続とサーバー設定を確認してください。</p>';
             }
-            $body.='<p>現段階では最新版の自動適用は未実装です。安全な更新機構が完成するまでは手動での配布・更新となります。</p>'
+            $body.='<p><a href="update.php">署名付き配布ZIPをアップロードして更新</a></p>'
+                .'<p>現在は署名付きZIPと署名ファイルを手元でダウンロードしてから適用します。公開鍵の初期設定が必要です。</p>'
                 .'<p><a href="?route=operations">システム保守に戻る</a></p>';
             page('GitHub更新確認',$body);
         }
@@ -122,7 +123,7 @@ final class OperationsRoutes
         }
 
         $admins=$db->query('SELECT id,login_id,role FROM administrators WHERE disabled_at IS NULL ORDER BY login_id')->fetchAll();
-        $body='<p><a href="?route=updates">GitHubの最新版を確認する</a> | <a href="?route=legacy-rooms">旧ルームのひな形を取り込む</a></p><h2>バックアップを取得</h2><p>SQLiteの一貫したコピーをダウンロードします。'
+        $body='<p><a href="?route=updates">GitHubの最新版を確認する</a> | <a href="update.php">署名付きZIPで更新する</a> | <a href="?route=legacy-rooms">旧ルームのひな形を取り込む</a></p><h2>バックアップを取得</h2><p>SQLiteの一貫したコピーをダウンロードします。'
             .'投稿・認証情報を含むため、取得したファイルは安全な場所に保管してください。</p>'
             .'<form method="post" action="?route=download-backup">'
             .'<input type="hidden" name="csrf" value="'.html(csrfToken()).'"><button>DBをバックアップ</button></form>'

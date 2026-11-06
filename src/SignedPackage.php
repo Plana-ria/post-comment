@@ -107,7 +107,7 @@ final class SignedPackage
         }
         if (str_starts_with($name,'public/')) {
             $local=substr($name,strlen('public/'));
-            if (in_array($local,['location.php','update.php'],true)) return false;
+            if (in_array($local,['location.php'],true)) return false;
             return $local==='.htaccess' || preg_match('#^[A-Za-z0-9_./-]+\.(php|js|css|svg|txt|html)$#D',$local)===1;
         }
         return false;
