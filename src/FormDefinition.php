@@ -47,6 +47,26 @@ final class FormDefinition
             if (!is_string($field['label'] ?? null) || trim($field['label']) === '') {
                 throw new InvalidArgumentException('Field label is required.');
             }
+            if (mb_strlen($field['label']) > 160) {
+                throw new InvalidArgumentException('Field label is too long.');
+            }
+            if (isset($field['required']) && !is_bool($field['required'])) {
+                throw new InvalidArgumentException('Required flag must be boolean.');
+            }
+            if (in_array($field['type'], ['select','radio'], true)) {
+                $options = $field['options'] ?? null;
+                if (!is_array($options) || count($options) < 1 || count($options) > 30) {
+                    throw new InvalidArgumentException('Invalid selectable options.');
+                }
+                foreach ($options as $option) {
+                    if (!is_string($option) || $option === '' || mb_strlen($option) > 120) {
+                        throw new InvalidArgumentException('Invalid option text.');
+                    }
+                }
+                if (count(array_unique($options)) !== count($options)) {
+                    throw new InvalidArgumentException('Duplicate options.');
+                }
+            }
             if (($field['role'] ?? '') === 'comment_body') {
                 ++$bodyCount;
                 if (empty($field['required']) || !in_array($field['type'], ['text', 'textarea'], true)) {
