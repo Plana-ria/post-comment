@@ -8,6 +8,7 @@ require dirname(__DIR__) . '/src/RoomForms.php';
 require dirname(__DIR__) . '/src/AuthThrottle.php';
 require dirname(__DIR__) . '/src/BackupService.php';
 require dirname(__DIR__) . '/src/RestoreService.php';
+require dirname(__DIR__) . '/src/LegacyCsvImporter.php';
 
 use PostComment\Database;
 use PostComment\Migrator;
@@ -17,6 +18,7 @@ use PostComment\RoomForms;
 use PostComment\AuthThrottle;
 use PostComment\BackupService;
 use PostComment\RestoreService;
+use PostComment\LegacyCsvImporter;
 
 $dir = sys_get_temp_dir() . '/post-comment-test-' . bin2hex(random_bytes(6));
 if (!mkdir($dir, 0700) && !is_dir($dir)) {
@@ -30,7 +32,7 @@ try {
         throw new RuntimeException('Initial migration unexpectedly absent');
     }
     $applied = Migrator::migrate($db, $folder);
-    if ($applied !== ['001_initial', '002_auth_throttling', '003_admin_auth_revision']) {
+    if ($applied !== ['001_initial', '002_auth_throttling', '003_admin_auth_revision', '004_legacy_import_unique']) {
         throw new RuntimeException('Migration failed');
     }
     if (Migrator::pending($db, $folder)) {
@@ -141,6 +143,30 @@ try {
         ]]);
         throw new RuntimeException('Form missing required body accepted');
     } catch (InvalidArgumentException $e) {}
+    $guestTemplateRoom=$service->createRoom('Imported guest','old-guest','none',$adminId,'guest');
+    $guestForm=$service->form($service->roomById($guestTemplateRoom));
+    if (count($guestForm['fields']) !== 2 || $guestForm['fields'][0]['key'] !== 'name') {
+        throw new RuntimeException('Guest form template differs from legacy guest');
+    }
+    $csvPath=$dir.'/old-chat.csv';
+    file_put_contents($csvPath,"\xEF\xBB\xBFtime,last_name,first_name,affiliation,mail,messenge\n2026/11/01 12:00:00,Yamada,Taro,University,,Historical post\n");
+    $importer=new LegacyCsvImporter($db);
+    $first=$importer->import($authenticatedRoom,$csvPath);
+    $again=$importer->import($authenticatedRoom,$csvPath);
+    if ($first['imported']!==1 || $again['duplicate']!==1) {
+        throw new RuntimeException('Legacy CSV must be imported idempotently');
+    }
+    $oldUser=$db->query("SELECT user_id,anonymous_session_id FROM comments WHERE legacy_source_id IS NOT NULL")->fetch();
+    if ($oldUser['user_id']!==null || $oldUser['anonymous_session_id']!==null) {
+        throw new RuntimeException('Legacy import must not link to new user ID');
+    }
+    file_put_contents($csvPath,"time,name,messenge\n2026/11/02 12:00:00,Visitor,Guest comment\n");
+    $guestImported=$importer->import($guestTemplateRoom,$csvPath);
+    if ($guestImported['imported']!==1 || !$guestImported['guest']) {
+        throw new RuntimeException('Guest CSV import failed');
+    }
+    unlink($csvPath);
+
     $limiter = new AuthThrottle($db);
     for ($i=0;$i<6;$i++) $limiter->failure('participant','test-account',6,900);
     if ($limiter->allow('participant','test-account')) {

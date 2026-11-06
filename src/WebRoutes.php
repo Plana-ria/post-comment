@@ -20,7 +20,7 @@ final class WebRoutes
             if ($method === 'POST') {
                 checkCsrf();
                 try {
-                    $service->createRoom(trim((string)($_POST['name'] ?? '')), (string)($_POST['slug'] ?? ''), (string)($_POST['auth_mode'] ?? ''), $admin['id']);
+                    $service->createRoom(trim((string)($_POST['name'] ?? '')), (string)($_POST['slug'] ?? ''), (string)($_POST['auth_mode'] ?? ''), $admin['id'], (string)($_POST['template'] ?? 'standard'));
                     redirect('home');
                 } catch (Throwable $e) {
                     self::error($e);
@@ -30,6 +30,7 @@ final class WebRoutes
                 . '<label>ルーム名<input name="name" required maxlength="160"></label>'
                 . '<label>URL識別子（英小文字・数字・ハイフン）<input name="slug" pattern="[a-z0-9][a-z0-9-]{1,62}" required></label>'
                 . '<label>認証方式<select name="auth_mode"><option value="required">ユーザーIDとログインコード</option><option value="none">認証なし</option></select></label>'
+                . '<label>投稿フォームの雛形<select name="template"><option value="standard">標準（姓・名・所属・メール・コメント）</option><option value="guest">簡易（名前・コメント）</option></select></label>'
                 . '<button>作成</button></form><p><a href="?route=home">戻る</a></p>');
         }
         if ($route === 'rooms') {
@@ -224,7 +225,7 @@ final class WebRoutes
                 }
                 self::csv('room-comments.csv',array_merge(['time','comment'],$keys),$records);
             }
-            $body='<p><a href="?route=admin-csv&amp;room_id='.rawurlencode($roomId).'">全件CSVを取得</a> | <a href="?route=form-edit&amp;room_id='.rawurlencode($roomId).'">投稿フォームを編集</a></p>';
+            $body='<p><a href="?route=admin-csv&amp;room_id='.rawurlencode($roomId).'">全件CSVを取得</a> | <a href="?route=legacy-import&amp;room_id='.rawurlencode($roomId).'">旧CSVを取り込む</a> | <a href="?route=form-edit&amp;room_id='.rawurlencode($roomId).'">投稿フォームを編集</a></p>';
             $cursor = count($comments) ? max(array_map(static fn($r)=>(int)$r['id'],$comments)) : 0;
             $body.='<h2>コメント（最新500件まで）</h2><section data-room-updates data-room-id="'.html($roomId).'" data-cursor="'.$cursor.'">';
             foreach ($comments as $entry) {

@@ -42,7 +42,7 @@ final class ChatService
         return (bool) $stmt->fetchColumn();
     }
 
-    public function createRoom(string $name, string $slug, string $mode, string $creatorId): string
+    public function createRoom(string $name, string $slug, string $mode, string $creatorId, string $template='standard'): string
     {
         if (trim($name) === '' || mb_strlen($name) > 160) {
             throw new RuntimeException('Room name must be 1–160 characters.');
@@ -55,7 +55,8 @@ final class ChatService
         }
         $id = self::id();
         $formId = self::id();
-        $definition = FormDefinition::defaults();
+        if (!in_array($template, ['standard','guest'], true)) throw new RuntimeException('Invalid room template.');
+        $definition = $template === 'guest' ? FormDefinition::guest() : FormDefinition::defaults();
         FormDefinition::validate($definition);
         $now = gmdate('Y-m-d\TH:i:s\Z');
         $this->db->beginTransaction();

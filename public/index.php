@@ -15,6 +15,8 @@ require dirname(__DIR__) . '/src/ManagementRoutes.php';
 require dirname(__DIR__) . '/src/AuthThrottle.php';
 require dirname(__DIR__) . '/src/BackupService.php';
 require dirname(__DIR__) . '/src/OperationsRoutes.php';
+require dirname(__DIR__) . '/src/LegacyCsvImporter.php';
+require dirname(__DIR__) . '/src/LegacyRoutes.php';
 
 use PostComment\Database;
 use PostComment\Migrator;
@@ -201,6 +203,9 @@ if (!$pending && !empty($_SESSION['admin_id'])) {
     }
 }
 
+if (\PostComment\LegacyRoutes::handle($db,$route,$method)) {
+    exit;
+}
 if (\PostComment\OperationsRoutes::handle($db,$config,$route,$method)) {
     exit;
 }

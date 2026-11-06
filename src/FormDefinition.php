@@ -24,6 +24,20 @@ final class FormDefinition
         ];
     }
 
+    public static function guest(): array
+    {
+        return [
+            'schema_version'=>1,
+            'title'=>'コメント投稿',
+            'description'=>'',
+            'submit_label'=>'送信',
+            'fields'=>[
+                ['key'=>'name','type'=>'text','label'=>'お名前','required'=>true],
+                ['key'=>'comment','type'=>'textarea','label'=>'コメント','required'=>true,'role'=>'comment_body'],
+            ],
+        ];
+    }
+
     public static function validate(array $definition): void
     {
         $fields = $definition['fields'] ?? null;
