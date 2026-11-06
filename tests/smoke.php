@@ -308,6 +308,13 @@ try {
     if ($guestImported['imported']!==1 || !$guestImported['guest']) {
         throw new RuntimeException('Guest CSV import failed');
     }
+    file_put_contents($csvPath,"time,name,messenge\n2026/02/30 12:00:00,Bad,Impossible day\n");
+    try {
+        $importer->import($guestTemplateRoom,$csvPath);
+        throw new RuntimeException('Impossible CSV date unexpectedly imported');
+    } catch (RuntimeException $e) {
+        if (str_contains($e->getMessage(),'unexpectedly')) throw $e;
+    }
     $japanese="time,name,messenge\n2026/11/03 12:00:00,来場者,質問があります\n";
     file_put_contents($csvPath,mb_convert_encoding($japanese,'CP932','UTF-8'));
     $cp932=$importer->import($guestTemplateRoom,$csvPath,100000,'CP932');
