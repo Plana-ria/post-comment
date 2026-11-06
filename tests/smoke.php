@@ -13,6 +13,7 @@ require dirname(__DIR__) . '/src/ChatService.php';
 require dirname(__DIR__) . '/src/CsvExport.php';
 require dirname(__DIR__) . '/src/RoomForms.php';
 require dirname(__DIR__) . '/src/LegacyRoomCatalog.php';
+require dirname(__DIR__) . '/src/SignedPackage.php';
 require dirname(__DIR__) . '/src/AdministratorService.php';
 require dirname(__DIR__) . '/src/AuthThrottle.php';
 require dirname(__DIR__) . '/src/BackupService.php';
@@ -28,6 +29,7 @@ use PostComment\ChatService;
 use PostComment\CsvExport;
 use PostComment\RoomForms;
 use PostComment\LegacyRoomCatalog;
+use PostComment\SignedPackage;
 use PostComment\AdministratorService;
 use PostComment\AuthThrottle;
 use PostComment\BackupService;
@@ -301,6 +303,35 @@ try {
     $fakeRelease['assets'][0]['browser_download_url']='https://attacker.invalid/release.zip';
     if (ReleaseChecker::fromApi($fakeRelease)!==null) {
         throw new RuntimeException('Untrusted release URL accepted');
+    }
+    if (extension_loaded('zip') && extension_loaded('sodium')) {
+        $fixture=$dir.'/valid.zip';
+        $signature=$dir.'/valid.sig';
+        $zip=new ZipArchive();
+        if ($zip->open($fixture,ZipArchive::CREATE)!==true) throw new RuntimeException('Test ZIP unavailable');
+        foreach ([
+            'post-comment-private/VERSION'=>"1.2.3\n",
+            'post-comment-private/src/Database.php'=>'<?php',
+            'post-comment-private/src/Migrator.php'=>'<?php',
+            'public/index.php'=>'<?php',
+            'public/bootstrap.php'=>'<?php',
+        ] as $filename=>$data) $zip->addFromString($filename,$data);
+        $zip->close();
+        $pair=sodium_crypto_sign_keypair();
+        $public=bin2hex(sodium_crypto_sign_publickey($pair));
+        $private=sodium_crypto_sign_secretkey($pair);
+        file_put_contents($signature,base64_encode(sodium_crypto_sign_detached(hash_file('sha256',$fixture,true),$private)));
+        $info=SignedPackage::inspect($fixture,$signature,$public,'1.0.0');
+        if ($info['version']!=='1.2.3' || count($info['entries'])!==5) throw new RuntimeException('Signed package inspection failed');
+        file_put_contents($signature,base64_encode(random_bytes(64)));
+        try {
+            SignedPackage::inspect($fixture,$signature,$public,'1.0.0');
+            throw new RuntimeException('Invalid signature accepted');
+        } catch (RuntimeException $e) {
+            if (str_contains($e->getMessage(),'accepted')) throw $e;
+        }
+        @unlink($fixture);
+        @unlink($signature);
     }
     echo "Smoke tests passed\n";
 } finally {

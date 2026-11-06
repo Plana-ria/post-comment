@@ -13,7 +13,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: pdo_sqlite
+          extensions: pdo_sqlite, zip, sodium
           coverage: none
       - name: Lint PHP files
         run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l

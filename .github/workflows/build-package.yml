@@ -18,13 +18,21 @@ jobs:
           RELEASE_EVENT: ${{ github.event_name }}
         run: |
           mkdir -p dist/release/post-comment-private dist/release/public
-          cp -R src database storage dist/release/post-comment-private/
+          cp -R src database dist/release/post-comment-private/
+          mkdir -p dist/release/post-comment-private/storage
           cp config.example.php README.md VERSION dist/release/post-comment-private/
           cp -R docs dist/release/post-comment-private/
           if [ "$RELEASE_EVENT" = "release" ]; then printf '%s\n' "${RELEASE_TAG#v}" > dist/release/post-comment-private/VERSION; fi
           cp -R public/. dist/release/public/
           cd dist/release
           zip -q -r ../post-comment-portable.zip post-comment-private public
+      - name: Sign production release (Ed25519 over ZIP SHA-256)
+        if: github.event_name == 'release'
+        env:
+          SIGNING_KEY_B64: ${{ secrets.POST_COMMENT_SIGNING_KEY_B64 }}
+        run: |
+          test -n "$SIGNING_KEY_B64" || { echo "::error::Signing key secret is not configured"; exit 1; }
+          php -r '$key=base64_decode(getenv("SIGNING_KEY_B64"),true); if($key===false || strlen($key)!==SODIUM_CRYPTO_SIGN_SECRETKEYBYTES){fwrite(STDERR,"Invalid signing key\n");exit(1);} $hash=hash_file("sha256","dist/post-comment-portable.zip",true); file_put_contents("dist/post-comment-portable.zip.sig",base64_encode(sodium_crypto_sign_detached($hash,$key))."\n");'
       - uses: actions/upload-artifact@v4
         with:
           name: post-comment-portable
@@ -34,4 +42,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$RELEASE_TAG" dist/post-comment-portable.zip --clobber
+        run: gh release upload "$RELEASE_TAG" dist/post-comment-portable.zip dist/post-comment-portable.zip.sig --clobber

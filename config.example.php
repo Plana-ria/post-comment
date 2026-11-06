@@ -30,5 +30,8 @@ return [
     'update' => [
         'repository' => 'Plana-ria/post-comment',
         'auto_apply' => false,
+        // 64 hexadecimal characters of the trusted Ed25519 public key.
+        // Leave blank to keep signed update installation disabled.
+        'public_key' => '',
     ],
 ];
