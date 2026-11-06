@@ -45,6 +45,7 @@ final class WebRoutes
                 $user = $service->registerUser();
                 session_regenerate_id(true);
                 $_SESSION['user_id'] = $user['id'];
+                $_SESSION['user_code_version'] = 1;
                 page('ユーザー登録完了', '<p>以下の情報を保存してください。他の端末でも使用できます。ログインコードは再表示できません。</p>'
                     . '<p>ユーザーID：<strong>' . html($user['login_id']) . '</strong></p>'
                     . '<p>ログインコード：<strong>' . html($user['code']) . '</strong></p>'
@@ -63,12 +64,13 @@ final class WebRoutes
             if (!$user) page('ログインできません', '<p>IDまたはコードを確認してください。</p><p><a href="?route=room&amp;slug='.rawurlencode($room['slug']).'">戻る</a></p>', 401);
             session_regenerate_id(true);
             $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_code_version'] = (int)$user['code_version'];
             header('Location: ?route=room&slug=' . rawurlencode($room['slug']), true, 303); exit;
         }
         if ($route === 'user-logout') {
             if ($method !== 'POST') page('操作できません', '', 405);
             checkCsrf();
-            unset($_SESSION['user_id']);
+            unset($_SESSION['user_id'], $_SESSION['user_code_version']);
             session_regenerate_id(true);
             redirect('rooms-public');
         }
@@ -83,7 +85,8 @@ final class WebRoutes
             if ($room['auth_mode'] === 'required') {
                 if (!empty($_SESSION['user_id'])) {
                     $user = $service->activeUser((string) $_SESSION['user_id']);
-                    $userId = $user['id'] ?? null;
+                    $userId = ($user && (int)$user['code_version'] === (int)($_SESSION['user_code_version'] ?? -1)) ? $user['id'] : null;
+                    if ($userId === null) unset($_SESSION['user_id'], $_SESSION['user_code_version']);
                 }
                 if (!$userId) {
                     if ($route !== 'room') page('ログインが必要です', '', 401);
@@ -248,7 +251,7 @@ final class WebRoutes
     private static function error(Throwable $e): never
     {
         error_log('PostComment action failed: '.$e->getMessage());
-        page('処理できませんでした','<p>入力内容と設定を確認してください。</p><p><a href="javascript:history.back()">戻る</a></p>',400);
+        page('処理できませんでした','<p>入力内容と設定を確認してください。</p><p>ブラウザの戻る操作で入力画面に戻ってください。</p>',400);
     }
 
     private static function csv(string $filename, array $headers, array $rows): never
