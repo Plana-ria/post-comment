@@ -237,9 +237,11 @@ final class ChatService
         return $stmt->fetchAll();
     }
 
-    public function adminComments(string $roomId, int $after=0): array
+    public function adminComments(string $roomId, int $after=0, ?int $limit=500): array
     {
-        $stmt=$this->db->prepare('SELECT c.id,c.created_at,c.comment_text,c.submitted_values_json,u.login_id FROM comments c LEFT JOIN users u ON u.id=c.user_id WHERE c.room_id=? AND c.id>? ORDER BY c.id ASC LIMIT 500');
+        $sql='SELECT c.id,c.created_at,c.comment_text,c.submitted_values_json,u.login_id FROM comments c LEFT JOIN users u ON u.id=c.user_id WHERE c.room_id=? AND c.id>? ORDER BY c.id ASC';
+        if ($limit !== null) $sql .= ' LIMIT ' . max(1, min($limit, 500));
+        $stmt=$this->db->prepare($sql);
         $stmt->execute([$roomId,$after]);
         return $stmt->fetchAll();
     }
