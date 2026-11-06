@@ -115,7 +115,7 @@ final class WebRoutes
                     $anon = $service->acceptAnonymous($room['id'],$token);
                     $anonId = $anon['id'];
                     if ($anon['token'] !== null) {
-                        $https = (($_SERVER['HTTPS'] ?? '') === 'on');
+                        $https = postCommentHttps();
                         setcookie($cookieName, $anon['token'], [
                             'expires'=>time()+86400, 'path'=>(function (): string { $path=dirname((string)($_SERVER['SCRIPT_NAME']??'/index.php')); return $path==='/' ? '/' : rtrim($path,'/').'/'; })(), 'secure'=>$https, 'httponly'=>true, 'samesite'=>'Lax'
                         ]);
