@@ -27,6 +27,7 @@ require $appRoot . '/src/AdministratorService.php';
 require $appRoot . '/src/AuthThrottle.php';
 require $appRoot . '/src/BackupService.php';
 require $appRoot . '/src/OperationsRoutes.php';
+require $appRoot . '/src/Diagnostics.php';
 require $appRoot . '/src/ReleaseChecker.php';
 require $appRoot . '/src/LegacyCsvImporter.php';
 require $appRoot . '/src/LegacyRoutes.php';

@@ -12,6 +12,7 @@ require dirname(__DIR__) . '/src/FormDefinition.php';
 require dirname(__DIR__) . '/src/ChatService.php';
 require dirname(__DIR__) . '/src/CsvExport.php';
 require dirname(__DIR__) . '/src/RoomForms.php';
+require dirname(__DIR__) . '/src/Diagnostics.php';
 require dirname(__DIR__) . '/src/LegacyRoomCatalog.php';
 require dirname(__DIR__) . '/src/SignedPackage.php';
 require dirname(__DIR__) . '/src/ReleaseDownloader.php';
@@ -30,6 +31,7 @@ use PostComment\FormDefinition;
 use PostComment\ChatService;
 use PostComment\CsvExport;
 use PostComment\RoomForms;
+use PostComment\Diagnostics;
 use PostComment\LegacyRoomCatalog;
 use PostComment\SignedPackage;
 use PostComment\ReleaseDownloader;
@@ -266,6 +268,19 @@ try {
     }
     unlink($csvPath);
 
+    $checks=Diagnostics::check(
+        ['storage'=>['database_path'=>$path,'backup_path'=>$dir],
+         'update'=>['public_key'=>'']],
+        $db, dirname(__DIR__), dirname(__DIR__).'/public',
+        ['DOCUMENT_ROOT'=>dirname(__DIR__).'/public','HTTPS'=>'on']
+    );
+    $found=[];
+    foreach ($checks as $check) $found[$check['key']]=$check['ok'];
+    if (!($found['integrity']??false) || !($found['storage']??false) ||
+        !($found['file_lock']??false) || ($found['signing_key']??true)) {
+        throw new RuntimeException('Environment diagnostic check failed');
+    }
+    @unlink($dir.'/diagnostic.lock');
     $limiter = new AuthThrottle($db);
     for ($i=0;$i<6;$i++) $limiter->failure('participant','test-account',6,900);
     if ($limiter->allow('participant','test-account')) {

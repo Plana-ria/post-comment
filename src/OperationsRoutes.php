@@ -11,7 +11,7 @@ final class OperationsRoutes
 {
     public static function handle(PDO $db, array $config, string $route, string $method): bool
     {
-        if (!in_array($route,['operations','updates','download-backup','admin-reset','legacy-rooms'],true)) return false;
+        if (!in_array($route,['operations','updates','download-backup','admin-reset','legacy-rooms','diagnostics'],true)) return false;
         $stmt = $db->prepare("SELECT id,login_id,role FROM administrators WHERE id=? AND disabled_at IS NULL");
         $stmt->execute([(string)($_SESSION['admin_id']??'')]);
         $admin = $stmt->fetch();
@@ -19,6 +19,19 @@ final class OperationsRoutes
             page('権限がありません','<p>システム管理者の認証が必要です。</p>',403);
         }
 
+        if ($route === 'diagnostics') {
+            if ($method !== 'GET') page('操作できません','',405);
+            $checks=Diagnostics::check($config,$db,dirname(__DIR__),dirname(__DIR__).'/public',$_SERVER);
+            $body='<p>環境の基本状態を確認します。絶対パスや認証情報は表示しません。</p><ul>';
+            foreach ($checks as $check) {
+                $body.='<li>'.($check['ok']?'✅':'⚠️').' '.html($check['label']);
+                if (!$check['ok']) $body.='：'.html($check['help']);
+                $body.='</li>';
+            }
+            $body.='</ul><p>この診断では、実際のメール配信・ネットワークファイルロック・障害復旧まで保証しません。</p>'
+                .'<p><a href="?route=operations">保守画面へ戻る</a></p>';
+            page('システム環境診断',$body);
+        }
         if ($route === 'legacy-rooms') {
             if ($method === 'POST') {
                 checkCsrf();
@@ -123,7 +136,7 @@ final class OperationsRoutes
         }
 
         $admins=$db->query('SELECT id,login_id,role FROM administrators WHERE disabled_at IS NULL ORDER BY login_id')->fetchAll();
-        $body='<p><a href="?route=updates">GitHubの最新版を確認する</a> | <a href="update.php">署名付きZIPで更新する</a> | <a href="?route=legacy-rooms">旧ルームのひな形を取り込む</a></p><h2>バックアップを取得</h2><p>SQLiteの一貫したコピーをダウンロードします。'
+        $body='<p><a href="?route=diagnostics">環境診断を開く</a> | <a href="?route=updates">GitHubの最新版を確認する</a> | <a href="update.php">署名付きZIPで更新する</a> | <a href="?route=legacy-rooms">旧ルームのひな形を取り込む</a></p><h2>バックアップを取得</h2><p>SQLiteの一貫したコピーをダウンロードします。'
             .'投稿・認証情報を含むため、取得したファイルは安全な場所に保管してください。</p>'
             .'<form method="post" action="?route=download-backup">'
             .'<input type="hidden" name="csrf" value="'.html(csrfToken()).'"><button>DBをバックアップ</button></form>'
