@@ -80,6 +80,12 @@ request(participant, "route=submit", {
     "affiliation":"TestAffiliation", "email":"test@example.com",
     "comment":"The test question",
 })
+sent = request(participant, "route=room&slug=browser-room")
+must("コメントを送信しました", sent)
+must("The test question", sent)
+again = request(participant, "route=room&slug=browser-room")
+if "コメントを送信しました" in again:
+    raise AssertionError("Post confirmation should only be displayed once")
 own = request(participant, "route=own-csv&slug=browser-room")
 rows = list(csv.reader(io.StringIO(own)))
 if rows[0] != ["time","comment"] or len(rows) != 2 or rows[1][1] != "The test question":

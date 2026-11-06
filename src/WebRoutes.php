@@ -137,6 +137,15 @@ final class WebRoutes
                     $published=$service->formByVersion($room['id'],$version);
                     $service->submit($room,$published,$_POST,$userId,$anonId,$version);
                     $throttle->failure('comment',$actor,30,60);
+                    $commentField=null;
+                    foreach ($published['fields'] as $field) {
+                        if (($field['role']??'')==='comment_body') {$commentField=$field['key'];break;}
+                    }
+                    $_SESSION['post_success']=[
+                        'room'=>$room['id'],
+                        'time'=>gmdate('Y-m-d\TH:i:s\Z'),
+                        'comment'=>substr((string)($_POST[$commentField]??''),0,20000),
+                    ];
                     header('Location: ?route=room&slug=' . rawurlencode($room['slug']), true, 303); exit;
                 } catch (Throwable $e) { self::error($e); }
             }
@@ -151,6 +160,13 @@ final class WebRoutes
             }
             $form = $service->form($room);
             $body = '<p>' . html((string)($form['description'] ?? '')) . '</p>';
+            $confirmation=$_SESSION['post_success']??null;
+            unset($_SESSION['post_success']);
+            if (is_array($confirmation) && ($confirmation['room']??null)===$room['id']) {
+                $body.='<section role="status" aria-live="polite"><h2>コメントを送信しました</h2>'
+                    .'<p>投稿日時（UTC）：'.html((string)$confirmation['time']).'</p>'
+                    .'<p>'.nl2br(html((string)$confirmation['comment'])).'</p></section>';
+            }
             if ($room['status'] === 'active') {
                 $body .= '<form method="post" action="?route=submit">'.self::csrf()
                     .'<input type="hidden" name="slug" value="'.html($room['slug']).'">'
