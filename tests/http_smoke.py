@@ -75,6 +75,7 @@ form = request(participant, "route=room&slug=browser-room")
 must("コメント", form)
 request(participant, "route=submit", {
     "csrf": token(form), "slug": "browser-room",
+    "form_version":re.search(r'name="form_version" value="([a-f0-9]{32})"',form).group(1),
     "last_name":"TestSurname","first_name":"TestGiven",
     "affiliation":"TestAffiliation", "email":"test@example.com",
     "comment":"The test question",
@@ -120,6 +121,7 @@ guest=client()
 anonymous=request(guest,"route=room&slug=anonymous-room")
 request(guest,"route=submit",{
     "csrf":token(anonymous),"slug":"anonymous-room",
+    "form_version":re.search(r'name="form_version" value="([a-f0-9]{32})"',anonymous).group(1),
     "last_name":"AnonymousSurname","first_name":"Anon",
     "affiliation":"PrivateAffiliation","email":"",
     "comment":"Anonymous post",

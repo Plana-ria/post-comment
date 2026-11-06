@@ -133,7 +133,9 @@ final class WebRoutes
                     $throttle=new AuthThrottle($db);
                     $actor=($userId ?? $anonId ?? '') . '|' . $room['id'];
                     if (!$throttle->allow('comment',$actor)) page('投稿回数の上限です','<p>少し時間を置いてから投稿してください。</p>',429);
-                    $service->submit($room,$service->form($room),$_POST,$userId,$anonId);
+                    $version=(string)($_POST['form_version']??'');
+                    $published=$service->formByVersion($room['id'],$version);
+                    $service->submit($room,$published,$_POST,$userId,$anonId,$version);
                     $throttle->failure('comment',$actor,30,60);
                     header('Location: ?route=room&slug=' . rawurlencode($room['slug']), true, 303); exit;
                 } catch (Throwable $e) { self::error($e); }
@@ -151,7 +153,8 @@ final class WebRoutes
             $body = '<p>' . html((string)($form['description'] ?? '')) . '</p>';
             if ($room['status'] === 'active') {
                 $body .= '<form method="post" action="?route=submit">'.self::csrf()
-                    .'<input type="hidden" name="slug" value="'.html($room['slug']).'">';
+                    .'<input type="hidden" name="slug" value="'.html($room['slug']).'">'
+                    .'<input type="hidden" name="form_version" value="'.html($room['active_form_version_id']).'">';
                 foreach ($form['fields'] as $field) {
                     $key=$field['key'];
                     $required=!empty($field['required']) ? ' required' : '';

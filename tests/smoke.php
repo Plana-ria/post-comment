@@ -168,10 +168,25 @@ try {
     $room = $service->roomById($authenticatedRoom);
     $input['category'] = '質問';
     $service->submit($room,$service->form($room),$input,$user['id'],null);
+    $pastDefinition=$service->formByVersion($authenticatedRoom,$previousVersion);
+    if ($pastDefinition['fields'][4]['label']!=='コメント') {
+        throw new RuntimeException('Historical form not retrievable');
+    }
+    // An in-flight form remains valid even after a new form is published.
+    $service->submit($room,$pastDefinition,[
+        'last_name'=>'Sato','first_name'=>'Miki','affiliation'=>'School',
+        'email'=>'','comment'=>'Late form',
+    ],$user['id'],null,$previousVersion);
+    try {
+        $service->formByVersion($authenticatedRoom,'ffffffffffffffffffffffffffffffff');
+        throw new RuntimeException('Unknown historical form unexpectedly resolved');
+    } catch (RuntimeException $e) {
+        if (str_contains($e->getMessage(),'unexpectedly')) throw $e;
+    }
     $past=$db->prepare('SELECT form_version_id FROM comments WHERE room_id=? ORDER BY id');
     $past->execute([$authenticatedRoom]);
     $linked=$past->fetchAll(PDO::FETCH_COLUMN);
-    if (count($linked)!==2 || $linked[0]!==$previousVersion || $linked[1]!==$room['active_form_version_id']) {
+    if (count($linked)!==3 || $linked[0]!==$previousVersion || $linked[1]!==$room['active_form_version_id'] || $linked[2]!==$previousVersion) {
         throw new RuntimeException('Historical form versions were not preserved');
     }
     try {
@@ -185,7 +200,7 @@ try {
     rewind($stream);
     $csvBytes = stream_get_contents($stream);
     fclose($stream);
-    if ($exportCount !== 2 || !str_contains($csvBytes,'category')
+    if ($exportCount !== 3 || !str_contains($csvBytes,'category')
         || !str_contains($csvBytes,'University')) {
         throw new RuntimeException('Full historical admin export missing fields');
     }

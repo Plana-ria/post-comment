@@ -119,6 +119,19 @@ final class ChatService
         return $form;
     }
 
+    /** Load a published immutable form, restricted to its owning room. */
+    public function formByVersion(string $roomId, string $versionId): array
+    {
+        if (!preg_match('/^[a-f0-9]{32}$/D',$versionId)) throw new RuntimeException('Invalid form version');
+        $stmt=$this->db->prepare('SELECT definition_json FROM form_versions WHERE id=? AND room_id=?');
+        $stmt->execute([$versionId,$roomId]);
+        $raw=$stmt->fetchColumn();
+        if ($raw === false) throw new RuntimeException('Form version not found');
+        $form=json_decode($raw,true,512,JSON_THROW_ON_ERROR);
+        FormDefinition::validate($form);
+        return $form;
+    }
+
     public function registerUser(): array
     {
         for ($attempt = 0; $attempt < 5; $attempt++) {
@@ -202,9 +215,10 @@ final class ChatService
         return $stmt->fetchColumn() ?: null;
     }
 
-    public function submit(array $room, array $form, array $input, ?string $userId, ?string $anonymousId): void
+    public function submit(array $room, array $form, array $input, ?string $userId, ?string $anonymousId, ?string $formVersionId=null): void
     {
         if ($room['status'] !== 'active') throw new RuntimeException('Room is closed.');
+        $formVersionId ??= $room['active_form_version_id'];
         if ($room['auth_mode'] === 'required' && !$userId) throw new RuntimeException('Login required.');
         if ($room['auth_mode'] === 'none' && !$anonymousId) throw new RuntimeException('Anonymous session required.');
         $values = [];
@@ -233,12 +247,23 @@ final class ChatService
         if ($comment === null || $comment==='') throw new RuntimeException('Comment body required.');
         $this->db->beginTransaction();
         try {
+            // Keep the rendered form version for a submission that is in-flight
+            // when an administrator publishes a newer version.
+            $status=$this->db->prepare('SELECT status,auth_mode FROM rooms WHERE id=?');
+            $status->execute([$room['id']]);
+            $current=$status->fetch();
+            if (!$current || $current['status']!=='active' || $current['auth_mode']!==$room['auth_mode']) {
+                throw new RuntimeException('Room is no longer accepting this submission.');
+            }
+            $check=$this->db->prepare('SELECT 1 FROM form_versions WHERE id=? AND room_id=?');
+            $check->execute([$formVersionId,$room['id']]);
+            if (!$check->fetchColumn()) throw new RuntimeException('Form version is not part of this room.');
             if ($userId !== null) {
                 $this->db->prepare('INSERT OR IGNORE INTO room_participants(room_id,user_id,first_joined_at) VALUES(?,?,?)')
                     ->execute([$room['id'],$userId,gmdate('Y-m-d\TH:i:s\Z')]);
             }
             $stmt=$this->db->prepare('INSERT INTO comments(room_id,user_id,anonymous_session_id,form_version_id,comment_text,submitted_values_json,created_at) VALUES(?,?,?,?,?,?,?)');
-            $stmt->execute([$room['id'],$userId,$anonymousId,$room['active_form_version_id'],$comment,json_encode($values,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE),gmdate('Y-m-d\TH:i:s\Z')]);
+            $stmt->execute([$room['id'],$userId,$anonymousId,$formVersionId,$comment,json_encode($values,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE),gmdate('Y-m-d\TH:i:s\Z')]);
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollBack();
