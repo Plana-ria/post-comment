@@ -11,7 +11,7 @@ final class ManagementRoutes
 {
     public static function handle(PDO $db, string $route, string $method): bool
     {
-        if (!in_array($route, ['form-edit','admins','admin-create','admin-assign'], true)) return false;
+        if (!in_array($route, ['form-edit','admins','admin-create','admin-assign','admin-unassign'], true)) return false;
         $admin = self::admin($db);
         if (!$admin) page('ログインが必要です', '<p><a href="?route=login">管理者ログイン</a></p>', 401);
         $system = $admin['role'] === 'system';
@@ -94,6 +94,13 @@ final class ManagementRoutes
                 page('登録失敗','<p>管理者IDの重複などを確認してください。</p>',400);
             }
         }
+        if ($route === 'admin-unassign') {
+            if ($method !== 'POST') page('操作できません','',405);
+            checkCsrf();
+            $db->prepare('DELETE FROM admin_room_roles WHERE admin_id=? AND room_id=?')
+                ->execute([(string)($_POST['admin_id']??''),(string)($_POST['room_id']??'')]);
+            header('Location: ?route=admins',true,303);exit;
+        }
         if ($route === 'admin-assign') {
             if ($method !== 'POST') page('操作できません','',405);
             checkCsrf();
@@ -115,6 +122,14 @@ final class ManagementRoutes
                     .'<input type="hidden" name="admin_id" value="'.html($a['id']).'"><select name="room_id">';
                 foreach ($rooms as $room) $body.='<option value="'.html($room['id']).'">'.html($room['name']).'</option>';
                 $body.='</select><button>担当ルームを追加</button></form>';
+                $assigned=$db->prepare('SELECT r.id,r.name FROM admin_room_roles ar JOIN rooms r ON r.id=ar.room_id WHERE ar.admin_id=? ORDER BY r.name');
+                $assigned->execute([$a['id']]);
+                foreach ($assigned->fetchAll() as $assignedRoom) {
+                    $body.='<form method="post" action="?route=admin-unassign">'.self::csrf()
+                        .'<input type="hidden" name="admin_id" value="'.html($a['id']).'">'
+                        .'<input type="hidden" name="room_id" value="'.html($assignedRoom['id']).'">'
+                        .html($assignedRoom['name']).' <button>担当解除</button></form>';
+                }
             }
             $body.='</li>';
         }
