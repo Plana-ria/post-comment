@@ -113,6 +113,46 @@ updates=json.loads(request(admin,"route=admin-updates&room_id="+room_id+"&after=
 if not any(c.get("comment_text")=="The test question" for c in updates["comments"]):
     raise AssertionError("Admin updates endpoint lost the post")
 
+# Form drafts are not visible to participants until published. Submissions from
+# a previously rendered form retain their historical schema after publication.
+edit = request(admin, "route=form-edit&room_id="+room_id)
+original_version=re.search(r'name="original_version" value="([a-f0-9]{32})"', edit)
+if not original_version:
+    raise AssertionError("Form editor did not expose publication version")
+values = {
+    "csrf":token(edit),"room_id":room_id,
+    "original_version":original_version.group(1),
+    "title":"Custom question form","description":"For integration testing",
+    "submit_label":"Send question",
+    "fields[0][key]":"comment","fields[0][label]":"Question body",
+    "fields[0][type]":"textarea","fields[0][required]":"1",
+    "fields[0][comment_body]":"1",
+}
+draft = request(admin,"route=form-edit",{**values,"action":"save_draft"})
+must("下書きを保存しました",draft)
+unchanged=request(participant,"route=room&slug=browser-room")
+must("姓",unchanged)
+draft_editor=request(admin,"route=form-edit&room_id="+room_id)
+must("保存済みの下書き",draft_editor)
+published=request(admin,"route=form-edit",{**values,"csrf":token(draft_editor),"action":"publish"})
+must("フォームを公開しました",published)
+updated_form=request(participant,"route=room&slug=browser-room")
+must("Question body",updated_form)
+if 'name="last_name"' in updated_form:
+    raise AssertionError("Published form did not replace default form")
+# The already displayed form is still valid, and its original form definition
+# must not be rewritten as the new version.
+old_post=request(participant,"route=submit",{
+    "csrf":token(form),"slug":"browser-room",
+    "form_version":original_version.group(1),
+    "last_name":"OldFormSurname","first_name":"OldFormGiven",
+    "affiliation":"OldFormAffiliation","email":"",
+    "comment":"From an earlier form",
+})
+must("コメントを送信しました",old_post)
+if "OldFormSurname" not in request(admin,"route=admin-csv&room_id="+room_id):
+    raise AssertionError("Historical form submission was not preserved")
+
 # A single system-wide identity must work in a second authenticated room.
 create_room("browser-room-2","required")
 other = client()
