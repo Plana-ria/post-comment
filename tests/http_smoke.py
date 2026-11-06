@@ -253,6 +253,40 @@ try:
         assert connection.execute(
             "SELECT name FROM sqlite_master WHERE name='http_upgrade_smoke'"
         ).fetchone() is not None, "Browser DB upgrade did not migrate"
+    # Restore a consistent SQLite snapshot through the real privileged
+    # multipart endpoint (not merely by calling RestoreService directly).
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".sqlite") as snapshot:
+        with sqlite3.connect(app_root / "storage/database.sqlite") as source:
+            with sqlite3.connect(snapshot.name) as target:
+                source.backup(target)
+        admin_ops = request(admin,"route=operations")
+        csrf = token(admin_ops)
+        boundary = "----PostCommentBackupRestoreTest"
+        body = (
+            "--"+boundary+"\r\n"
+            'Content-Disposition: form-data; name="csrf"\r\n\r\n'
+            +csrf+"\r\n"
+            "--"+boundary+"\r\n"
+            'Content-Disposition: form-data; name="backup"; filename="backup.sqlite"\r\n'
+            "Content-Type: application/octet-stream\r\n\r\n"
+        ).encode("utf-8") + Path(snapshot.name).read_bytes() + (
+            "\r\n--"+boundary+"--\r\n"
+        ).encode("utf-8")
+        upload = Request(
+            BASE+"restore.php",
+            data=body,
+            headers={"Content-Type":"multipart/form-data; boundary="+boundary},
+        )
+        with admin.open(upload,timeout=15) as response:
+            restored_html = response.read().decode("utf-8")
+        must("データを復元しました",restored_html)
+        after_restore=request(admin,"route=login")
+        request(admin,"route=login",{
+            "csrf":token(after_restore),"login_id":"owner",
+            "secret":"very-long-system-admin-secret",
+        })
+        must("管理ダッシュボード",request(admin,"route=home"))
 finally:
     migration.unlink(missing_ok=True)
 
