@@ -94,6 +94,10 @@ final class WebRoutes
             page('参加可能なルーム', '<p>参加するルームのURLを開いてください。</p>');
         }
         if (in_array($route, ['room', 'submit', 'own-csv'], true)) {
+            if ($route === 'submit') {
+                if ($method !== 'POST') page('操作できません', '', 405);
+                checkCsrf(); // Reject forged requests before creating anonymous identity rows.
+            }
             $room = $service->roomBySlug((string)($_REQUEST['slug'] ?? ''));
             if (!$room) page('ルームがありません', '', 404);
             $userId = null;
@@ -115,7 +119,7 @@ final class WebRoutes
             } else {
                 $cookieName = 'pc_anon_' . substr(hash('sha256',$room['id']),0,16);
                 $token = is_string($_COOKIE[$cookieName] ?? null) ? $_COOKIE[$cookieName] : null;
-                if ($room['status'] === 'active' && ($route === 'room' || $route === 'submit')) {
+                if ($room['status'] === 'active' && $route === 'room') {
                     $anon = $service->acceptAnonymous($room['id'],$token);
                     $anonId = $anon['id'];
                     if ($anon['token'] !== null) {
@@ -128,6 +132,10 @@ final class WebRoutes
                     }
                 } else {
                     $anonId = $service->anonymousId($room['id'],$token);
+                    if ($route === 'submit' && $anonId === null) {
+                        page('セッションを確認してください',
+                            '<p>投稿画面を再読み込みし、Cookieを有効にして再度送信してください。</p>',401);
+                    }
                 }
             }
             if ($route === 'submit') {
