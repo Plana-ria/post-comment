@@ -368,4 +368,20 @@ if before != after:
 if "Anonymous post" not in request(guest,"route=own-csv&slug=anonymous-room"):
     raise AssertionError("Previously submitted anonymous data became inaccessible")
 
+# Multiple password guesses for one login ID must be throttled independently
+# of successful logins from other accounts sharing the IP.
+attacker=client()
+attacker_form=request(attacker,"route=login")
+for attempt in range(6):
+    request(attacker,"route=login",{
+        "csrf":token(attacker_form),
+        "login_id":"invalid-user-for-rate-check",
+        "secret":"wrong-password-"+str(attempt),
+    },expect=401)
+request(attacker,"route=login",{
+    "csrf":token(attacker_form),
+    "login_id":"invalid-user-for-rate-check",
+    "secret":"a-seventh-guess",
+},expect=429)
+
 print("HTTP integration tests passed")
