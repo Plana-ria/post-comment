@@ -65,6 +65,10 @@ try {
         throw new RuntimeException('Room/form initialization failed');
     }
     $user = $service->registerUser();
+    $service->joinRoom($authenticatedRoom,$user['id']);
+    if (count($service->usersInRoom($authenticatedRoom))!==1) {
+        throw new RuntimeException('Joined but not posted user missing');
+    }
     if (!$service->authenticateUser($user['login_id'], $user['code'])) {
         throw new RuntimeException('Login code authentication failed');
     }
@@ -78,6 +82,11 @@ try {
     if ($service->authenticateUser($user['login_id'], $user['code']) || !$service->authenticateUser($user['login_id'], $code)) {
         throw new RuntimeException('Code reset failed');
     }
+    $service->updateRoom($authenticatedRoom,'Renamed room','closed');
+    if ($service->roomById($authenticatedRoom)['status']!=='closed') {
+        throw new RuntimeException('Room closure not stored');
+    }
+    $service->updateRoom($authenticatedRoom,'Renamed room','active');
     $guestRoom = $service->roomById($anonymousRoom);
     $anon = $service->acceptAnonymous($anonymousRoom, null);
     if ($service->anonymousId($anonymousRoom, $anon['token']) !== $anon['id']) {

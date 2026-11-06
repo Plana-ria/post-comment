@@ -11,11 +11,35 @@ final class ManagementRoutes
 {
     public static function handle(PDO $db, string $route, string $method): bool
     {
-        if (!in_array($route, ['form-edit','admins','admin-create','admin-assign','admin-unassign'], true)) return false;
+        if (!in_array($route, ['form-edit','room-settings','admins','admin-create','admin-assign','admin-unassign'], true)) return false;
         $admin = self::admin($db);
         if (!$admin) page('ログインが必要です', '<p><a href="?route=login">管理者ログイン</a></p>', 401);
         $system = $admin['role'] === 'system';
         $service = new ChatService($db);
+        if ($route === 'room-settings') {
+            $roomId=(string)($_REQUEST['room_id']??'');
+            $room=$service->roomById($roomId);
+            if (!$room || !$service->isManager($admin['id'],$roomId,$system)) page('権限がありません','',403);
+            if ($method==='POST') {
+                checkCsrf();
+                try {
+                    $service->updateRoom($roomId,(string)($_POST['name']??''),(string)($_POST['status']??''));
+                    header('Location: ?route=room-admin&room_id='.rawurlencode($roomId),true,303);exit;
+                } catch (Throwable $e) {
+                    page('設定を保存できませんでした','<p>ルーム名と公開状態を確認してください。</p>',400);
+                }
+            }
+            $body='<p>認証方式とURL識別子は作成後に変更できません。投稿データの混在を防ぐためです。</p>'
+                .'<form method="post" action="?route=room-settings">'.self::csrf()
+                .'<input type="hidden" name="room_id" value="'.html($roomId).'">'
+                .'<label>ルーム名<input name="name" required maxlength="160" value="'.html($room['name']).'"></label>'
+                .'<label>投稿受付<select name="status">'
+                .'<option value="active"'.($room['status']==='active'?' selected':'').'>受付中</option>'
+                .'<option value="closed"'.($room['status']==='closed'?' selected':'').'>受付終了</option>'
+                .'</select></label><button>保存</button></form>'
+                .'<p><a href="?route=room-admin&amp;room_id='.rawurlencode($roomId).'">受信画面に戻る</a></p>';
+            page('ルーム設定',$body);
+        }
         if ($route === 'form-edit') {
             $roomId=(string)($_REQUEST['room_id']??'');
             $room=$service->roomById($roomId);

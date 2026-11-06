@@ -43,7 +43,12 @@ final class WebRoutes
             $room = $service->roomBySlug((string)($_POST['slug'] ?? ''));
             if (!$room || $room['status'] !== 'active' || $room['auth_mode'] !== 'required') page('ルームがありません', '', 404);
             try {
+                $throttle = new AuthThrottle($db);
+                $client = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+                if (!$throttle->allow('registration', $client)) page('登録制限中','<p>しばらくしてからやり直してください。</p>',429);
                 $user = $service->registerUser();
+                $throttle->failure('registration',$client,5,1800);
+                $service->joinRoom($room['id'], $user['id']);
                 session_regenerate_id(true);
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['user_code_version'] = 1;
@@ -71,6 +76,7 @@ final class WebRoutes
             session_regenerate_id(true);
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['user_code_version'] = (int)$user['code_version'];
+            $service->joinRoom($room['id'],$user['id']);
             header('Location: ?route=room&slug=' . rawurlencode($room['slug']), true, 303); exit;
         }
         if ($route === 'user-logout') {
@@ -124,7 +130,11 @@ final class WebRoutes
                 if ($method !== 'POST') page('操作できません', '', 405);
                 checkCsrf();
                 try {
+                    $throttle=new AuthThrottle($db);
+                    $actor=($userId ?? $anonId ?? '') . '|' . $room['id'];
+                    if (!$throttle->allow('comment',$actor)) page('投稿回数の上限です','<p>少し時間を置いてから投稿してください。</p>',429);
                     $service->submit($room,$service->form($room),$_POST,$userId,$anonId);
+                    $throttle->failure('comment',$actor,30,60);
                     header('Location: ?route=room&slug=' . rawurlencode($room['slug']), true, 303); exit;
                 } catch (Throwable $e) { self::error($e); }
             }
@@ -225,7 +235,7 @@ final class WebRoutes
                 }
                 self::csv('room-comments.csv',array_merge(['time','comment'],$keys),$records);
             }
-            $body='<p><a href="?route=admin-csv&amp;room_id='.rawurlencode($roomId).'">全件CSVを取得</a> | <a href="?route=legacy-import&amp;room_id='.rawurlencode($roomId).'">旧CSVを取り込む</a> | <a href="?route=form-edit&amp;room_id='.rawurlencode($roomId).'">投稿フォームを編集</a></p>';
+            $body='<p><a href="?route=admin-csv&amp;room_id='.rawurlencode($roomId).'">全件CSVを取得</a> | <a href="?route=room-settings&amp;room_id='.rawurlencode($roomId).'">ルーム設定</a> | <a href="?route=legacy-import&amp;room_id='.rawurlencode($roomId).'">旧CSVを取り込む</a> | <a href="?route=form-edit&amp;room_id='.rawurlencode($roomId).'">投稿フォームを編集</a></p>';
             $cursor = count($comments) ? max(array_map(static fn($r)=>(int)$r['id'],$comments)) : 0;
             $body.='<h2>コメント（最新500件まで）</h2><section data-room-updates data-room-id="'.html($roomId).'" data-cursor="'.$cursor.'">';
             foreach ($comments as $entry) {

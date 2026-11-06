@@ -75,6 +75,25 @@ final class ChatService
         return $id;
     }
 
+    public function joinRoom(string $roomId, string $userId): void
+    {
+        $this->db->prepare('INSERT OR IGNORE INTO room_participants(room_id,user_id,first_joined_at) VALUES(?,?,?)')
+            ->execute([$roomId,$userId,gmdate('Y-m-d\TH:i:s\Z')]);
+    }
+
+    public function updateRoom(string $roomId, string $name, string $status): void
+    {
+        $name=trim($name);
+        if ($name==='' || mb_strlen($name)>160 || !in_array($status,['active','closed'],true)) {
+            throw new RuntimeException('Invalid room settings.');
+        }
+        $stmt=$this->db->prepare('UPDATE rooms SET name=?, status=? WHERE id=?');
+        $stmt->execute([$name,$status,$roomId]);
+        if ($stmt->rowCount()===0 && !$this->roomById($roomId)) {
+            throw new RuntimeException('Room does not exist.');
+        }
+    }
+
     public function roomBySlug(string $slug): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM rooms WHERE slug=?');
@@ -243,10 +262,13 @@ final class ChatService
 
     public function adminComments(string $roomId, int $after=0, ?int $limit=500): array
     {
-        $sql='SELECT c.id,c.created_at,c.comment_text,c.submitted_values_json,u.login_id FROM comments c LEFT JOIN users u ON u.id=c.user_id WHERE c.room_id=? AND c.id>? ORDER BY c.id ASC';
+        $sql='SELECT c.id,c.created_at,c.comment_text,c.submitted_values_json,u.login_id FROM comments c LEFT JOIN users u ON u.id=c.user_id WHERE c.room_id=? AND c.id>?';
+        $newest = $after===0 && $limit!==null;
+        $sql .= $newest ? ' ORDER BY c.id DESC' : ' ORDER BY c.id ASC';
         if ($limit !== null) $sql .= ' LIMIT ' . max(1, min($limit, 500));
         $stmt=$this->db->prepare($sql);
         $stmt->execute([$roomId,$after]);
-        return $stmt->fetchAll();
+        $rows=$stmt->fetchAll();
+        return $newest ? array_reverse($rows) : $rows;
     }
 }
