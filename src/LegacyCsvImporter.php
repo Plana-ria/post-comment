@@ -68,8 +68,16 @@ final class LegacyCsvImporter
                     if (count($row)!==count($headers)) throw new RuntimeException($rowNumber.'行目の列数が一致しません。');
                     $row=array_map(static fn($v)=>$decode((string)$v),$row);
                     $time=(string)$row[$keys['time']];
-                    $date=DateTimeImmutable::createFromFormat('!Y/m/d H:i:s',$time,$nowJapan);
-                    if (!$date) $date=DateTimeImmutable::createFromFormat('!Y-m-d H:i:s',$time,$nowJapan);
+                    $date=false;
+                    foreach (['!Y/m/d H:i:s','!Y-m-d H:i:s'] as $format) {
+                        $candidate=DateTimeImmutable::createFromFormat($format,$time,$nowJapan);
+                        $errors=DateTimeImmutable::getLastErrors();
+                        if ($candidate && ($errors===false ||
+                            ($errors['warning_count']===0 && $errors['error_count']===0))) {
+                            $date=$candidate;
+                            break;
+                        }
+                    }
                     if (!$date) throw new RuntimeException($rowNumber.'行目の時刻が不正です。');
                     $comment=(string)$row[$messageCol];
                     if (strlen($comment)>1048576) throw new RuntimeException($rowNumber.'行目のコメントが長すぎます。');
