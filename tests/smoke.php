@@ -287,14 +287,19 @@ try {
         throw new RuntimeException('Guest form template differs from legacy guest');
     }
     $csvPath=$dir.'/old-chat.csv';
-    file_put_contents($csvPath,"\xEF\xBB\xBFtime,last_name,first_name,affiliation,mail,messenge\n2026/11/01 12:00:00,Yamada,Taro,University,,Historical post\n");
+    file_put_contents($csvPath,"\xEF\xBB\xBFtime,last_name,first_name,affiliation,mail,messenge,custom_note\n2026/11/01 12:00:00,Yamada,Taro,University,,Historical post,\"question, answer\"\n");
     $importer=new LegacyCsvImporter($db);
     $first=$importer->import($authenticatedRoom,$csvPath);
     $again=$importer->import($authenticatedRoom,$csvPath);
     if ($first['imported']!==1 || $again['duplicate']!==1) {
         throw new RuntimeException('Legacy CSV must be imported idempotently');
     }
-    $oldUser=$db->query("SELECT user_id,anonymous_session_id FROM comments WHERE legacy_source_id IS NOT NULL")->fetch();
+    $allHistorical=$db->query("SELECT user_id,anonymous_session_id,submitted_values_json FROM comments WHERE legacy_source_id IS NOT NULL ORDER BY id")->fetchAll();
+    $legacyAnswers=json_decode($allHistorical[0]['submitted_values_json'],true,512,JSON_THROW_ON_ERROR);
+    if (($legacyAnswers['custom_note']??null)!=='question, answer') {
+        throw new RuntimeException('Legacy custom fields were lost');
+    }
+    $oldUser=$allHistorical[0];
     if ($oldUser['user_id']!==null || $oldUser['anonymous_session_id']!==null) {
         throw new RuntimeException('Legacy import must not link to new user ID');
     }
@@ -302,6 +307,17 @@ try {
     $guestImported=$importer->import($guestTemplateRoom,$csvPath);
     if ($guestImported['imported']!==1 || !$guestImported['guest']) {
         throw new RuntimeException('Guest CSV import failed');
+    }
+    $japanese="time,name,messenge\n2026/11/03 12:00:00,来場者,質問があります\n";
+    file_put_contents($csvPath,mb_convert_encoding($japanese,'CP932','UTF-8'));
+    $cp932=$importer->import($guestTemplateRoom,$csvPath,100000,'CP932');
+    if ($cp932['imported']!==1) throw new RuntimeException('CP932 import failed');
+    $japanQuery=$db->prepare('SELECT submitted_values_json,comment_text FROM comments WHERE room_id=? ORDER BY id DESC LIMIT 1');
+    $japanQuery->execute([$guestTemplateRoom]);
+    $japanRow=$japanQuery->fetch();
+    if ($japanRow['comment_text']!=='質問があります' ||
+        json_decode($japanRow['submitted_values_json'],true,512,JSON_THROW_ON_ERROR)['name']!=='来場者') {
+        throw new RuntimeException('CP932 import corrupted Japanese input');
     }
     unlink($csvPath);
 
